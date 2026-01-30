@@ -279,32 +279,42 @@
         }
 
         // Poisson disk sampling with relaxation
+        // Extended area ensures edge spots are visible
         function generatePoissonDiskSamples(count, minDist, seed) {
             const random = seededRandom(seed);
             const samples = [];
+
+            // Extend the generation area beyond 0-1 so edge spots are visible
+            const padding = 0.15;
+            const minX = -padding, maxX = 1 + padding;
+            const minY = -padding, maxY = 1 + padding;
+            const rangeX = maxX - minX;
+            const rangeY = maxY - minY;
+
             const cellSize = minDist / Math.sqrt(2);
-            const gridWidth = Math.ceil(1 / cellSize);
-            const grid = new Array(gridWidth * gridWidth).fill(null);
+            const gridWidth = Math.ceil(rangeX / cellSize);
+            const gridHeight = Math.ceil(rangeY / cellSize);
+            const grid = new Array(gridWidth * gridHeight).fill(null);
 
             function gridIndex(x, y) {
-                const gx = Math.floor(x / cellSize);
-                const gy = Math.floor(y / cellSize);
-                if (gx < 0 || gx >= gridWidth || gy < 0 || gy >= gridWidth) return -1;
+                const gx = Math.floor((x - minX) / cellSize);
+                const gy = Math.floor((y - minY) / cellSize);
+                if (gx < 0 || gx >= gridWidth || gy < 0 || gy >= gridHeight) return -1;
                 return gy * gridWidth + gx;
             }
 
             function isValidPoint(x, y) {
-                if (x < 0 || x >= 1 || y < 0 || y >= 1) return false;
+                if (x < minX || x >= maxX || y < minY || y >= maxY) return false;
 
-                const gx = Math.floor(x / cellSize);
-                const gy = Math.floor(y / cellSize);
+                const gx = Math.floor((x - minX) / cellSize);
+                const gy = Math.floor((y - minY) / cellSize);
 
                 // Check 5x5 neighborhood
                 for (let dy = -2; dy <= 2; dy++) {
                     for (let dx = -2; dx <= 2; dx++) {
                         const nx = gx + dx;
                         const ny = gy + dy;
-                        if (nx < 0 || nx >= gridWidth || ny < 0 || ny >= gridWidth) continue;
+                        if (nx < 0 || nx >= gridWidth || ny < 0 || ny >= gridHeight) continue;
 
                         const idx = ny * gridWidth + nx;
                         const neighbor = grid[idx];
@@ -325,7 +335,7 @@
                 return point;
             }
 
-            // Start with a random point
+            // Start with a random point in the visible area
             const startX = random();
             const startY = random();
             addPoint(startX, startY, random());
@@ -360,8 +370,8 @@
             // If we need more points, add them with relaxed constraints
             let attempts = 0;
             while (samples.length < count && attempts < count * 10) {
-                const x = random();
-                const y = random();
+                const x = minX + random() * rangeX;
+                const y = minY + random() * rangeY;
                 if (isValidPoint(x, y)) {
                     addPoint(x, y, random());
                 }
@@ -403,6 +413,14 @@
             uniform float u_voronoi;
             uniform float u_cellGap;
             uniform float u_stripeBlur;
+            uniform float u_aspectRatio;
+
+            // Aspect-ratio-corrected distance
+            float aspectDistance(vec2 a, vec2 b) {
+                vec2 diff = a - b;
+                diff.x *= u_aspectRatio;
+                return length(diff);
+            }
 
             // Hash for noise
             float hash(vec2 p) {
@@ -468,7 +486,7 @@
                     vec4 spotData = texture2D(u_spotTexture, vec2(texX, 0.5));
                     vec2 spotPos = spotData.xy;
 
-                    float d = length(uv - spotPos);
+                    float d = aspectDistance(uv, spotPos);
 
                     if (d < minDist1) {
                         minDist2 = minDist1;
@@ -495,9 +513,11 @@
                     float spotRadius = u_spotSize * (1.0 - u_spotSizeVar + u_spotSizeVar * 2.0 * sizeRand);
 
                     vec2 toPixel = uv - spotPos;
-                    float d = length(toPixel);
+                    vec2 toPixelAspect = toPixel;
+                    toPixelAspect.x *= u_aspectRatio;
+                    float d = length(toPixelAspect);
 
-                    float angle = atan(toPixel.y, toPixel.x);
+                    float angle = atan(toPixelAspect.y, toPixelAspect.x);
                     float shapeNoise = fbm(vec2(angle * 3.0 + sizeRand * 100.0, sizeRand * 50.0 + u_seed)) * 2.0 - 1.0;
                     float distortedRadius = spotRadius * (1.0 + shapeNoise * u_shapeVar * 0.5);
 
@@ -510,7 +530,9 @@
 
                 // Add shape variation to voronoi edges
                 vec2 toPixel = uv - closestPos;
-                float angle = atan(toPixel.y, toPixel.x);
+                vec2 toPixelAspect = toPixel;
+                toPixelAspect.x *= u_aspectRatio;
+                float angle = atan(toPixelAspect.y, toPixelAspect.x);
                 float shapeNoise = fbm(vec2(angle * 3.0 + closestSizeRand * 100.0, closestSizeRand * 50.0 + u_seed)) * 2.0 - 1.0;
                 float edgeVariation = shapeNoise * u_shapeVar * 0.03;
 
@@ -589,7 +611,8 @@
             shapeVar: gl.getUniformLocation(program, 'u_shapeVar'),
             voronoi: gl.getUniformLocation(program, 'u_voronoi'),
             cellGap: gl.getUniformLocation(program, 'u_cellGap'),
-            stripeBlur: gl.getUniformLocation(program, 'u_stripeBlur')
+            stripeBlur: gl.getUniformLocation(program, 'u_stripeBlur'),
+            aspectRatio: gl.getUniformLocation(program, 'u_aspectRatio')
         };
 
         // Create spot texture
@@ -683,6 +706,7 @@
             gl.uniform1f(uniforms.voronoi, parseFloat(document.getElementById('voronoi').value));
             gl.uniform1f(uniforms.cellGap, parseFloat(document.getElementById('cellGap').value));
             gl.uniform1f(uniforms.stripeBlur, parseFloat(document.getElementById('stripeBlur').value));
+            gl.uniform1f(uniforms.aspectRatio, width / height);
 
             // Bind spot texture
             gl.activeTexture(gl.TEXTURE0);
