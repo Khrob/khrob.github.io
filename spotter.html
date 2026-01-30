@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whale Shark Skin Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            display: flex;
+        }
+        .controls {
+            width: 300px;
+            padding: 20px;
+            background: #16213e;
+            overflow-y: auto;
+            max-height: 100vh;
+        }
+        .controls h1 {
+            font-size: 1.4em;
+            margin-bottom: 20px;
+            color: #4fc3dc;
+        }
+        .control-group {
+            margin-bottom: 16px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.85em;
+            color: #aaa;
+        }
+        .control-group input[type="range"] {
+            width: 100%;
+            accent-color: #4fc3dc;
+        }
+        .control-group input[type="color"] {
+            width: 60px;
+            height: 30px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .control-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .control-row label {
+            margin-bottom: 0;
+        }
+        .value {
+            font-size: 0.8em;
+            color: #4fc3dc;
+            float: right;
+        }
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: #0f0f1a;
+        }
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            background: #4fc3dc;
+            color: #1a1a2e;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #3aa8c1;
+        }
+        .section-title {
+            font-size: 0.9em;
+            color: #4fc3dc;
+            margin: 20px 0 10px;
+            padding-top: 15px;
+            border-top: 1px solid #2a3a5e;
+        }
+        .preset-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .preset-row input[type="text"] {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #2a3a5e;
+            border-radius: 4px;
+            background: #0f0f1a;
+            color: #eee;
+            font-family: monospace;
+            font-size: 0.75em;
+        }
+        .preset-row button {
+            width: auto;
+            padding: 8px 12px;
+            margin-top: 0;
+            font-size: 0.85em;
+        }
+        .size-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .size-row label {
+            width: 50px;
+            margin-bottom: 0;
+        }
+        .size-row input[type="number"] {
+            width: 70px;
+            padding: 6px 8px;
+            border: 1px solid #2a3a5e;
+            border-radius: 4px;
+            background: #0f0f1a;
+            color: #eee;
+            font-size: 0.9em;
+        }
+        .size-row input[type="range"] {
+            flex: 1;
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h1>Whale Shark Skin</h1>
+
+        <div class="section-title">Resolution</div>
+        <div class="control-group">
+            <div class="size-row">
+                <label>Width</label>
+                <input type="number" id="widthNum" min="64" max="8192" value="1024">
+                <input type="range" id="width" min="64" max="4096" step="64" value="1024">
+            </div>
+            <div class="size-row">
+                <label>Height</label>
+                <input type="number" id="heightNum" min="64" max="8192" value="1024">
+                <input type="range" id="height" min="64" max="4096" step="64" value="1024">
+            </div>
+        </div>
+
+        <div class="section-title">Colours</div>
+        <div class="control-group">
+            <div class="control-row">
+                <label>Background</label>
+                <input type="color" id="bgColor" value="#2b4a6f">
+            </div>
+        </div>
+        <div class="control-group">
+            <div class="control-row">
+                <label>Spots</label>
+                <input type="color" id="spotColor" value="#d4e5f7">
+            </div>
+        </div>
+
+        <div class="section-title">Background Noise</div>
+        <div class="control-group">
+            <label>Noise Amount <span class="value" id="bgNoiseVal">0.15</span></label>
+            <input type="range" id="bgNoise" min="0" max="0.5" step="0.01" value="0.15">
+        </div>
+        <div class="control-group">
+            <label>Noise Scale <span class="value" id="bgNoiseScaleVal">3.0</span></label>
+            <input type="range" id="bgNoiseScale" min="1" max="20" step="0.5" value="3.0">
+        </div>
+
+        <div class="section-title">Spots</div>
+        <div class="control-group">
+            <label>Spot Size <span class="value" id="spotSizeVal">0.025</span></label>
+            <input type="range" id="spotSize" min="0.005" max="0.08" step="0.001" value="0.025">
+        </div>
+        <div class="control-group">
+            <label>Size Variation <span class="value" id="spotSizeVarVal">0.5</span></label>
+            <input type="range" id="spotSizeVar" min="0" max="1" step="0.05" value="0.5">
+        </div>
+        <div class="control-group">
+            <label>Spot Count <span class="value" id="spotCountVal">200</span></label>
+            <input type="range" id="spotCount" min="20" max="5000" step="10" value="200">
+        </div>
+        <div class="control-group">
+            <label>Min Spacing <span class="value" id="minSpacingVal">0.04</span></label>
+            <input type="range" id="minSpacing" min="0.001" max="0.15" step="0.001" value="0.04">
+        </div>
+        <div class="control-group">
+            <label>Blur <span class="value" id="blurVal">0.4</span></label>
+            <input type="range" id="blur" min="0" max="1" step="0.05" value="0.4">
+        </div>
+        <div class="control-group">
+            <label>Shape Variation <span class="value" id="shapeVarVal">0.0</span></label>
+            <input type="range" id="shapeVar" min="0" max="1" step="0.05" value="0.0">
+        </div>
+        <div class="control-group">
+            <label>Voronoi Mode <span class="value" id="voronoiVal">0.0</span></label>
+            <input type="range" id="voronoi" min="0" max="1" step="0.05" value="0.0">
+        </div>
+        <div class="control-group">
+            <label>Cell Gap <span class="value" id="cellGapVal">0.02</span></label>
+            <input type="range" id="cellGap" min="0" max="0.1" step="0.005" value="0.02">
+        </div>
+
+        <div class="section-title">Stripes</div>
+        <div class="control-group">
+            <label>Stripe Amount <span class="value" id="stripeAmountVal">0.0</span></label>
+            <input type="range" id="stripeAmount" min="0" max="1" step="0.05" value="0.0">
+        </div>
+        <div class="control-group">
+            <label>Stripe Width <span class="value" id="stripeWidthVal">0.03</span></label>
+            <input type="range" id="stripeWidth" min="0.01" max="0.5" step="0.01" value="0.03">
+        </div>
+        <div class="control-group">
+            <label>Stripe Frequency <span class="value" id="stripeFreqVal">8</span></label>
+            <input type="range" id="stripeFreq" min="2" max="20" step="1" value="8">
+        </div>
+        <div class="control-group">
+            <label>Stripe Blur <span class="value" id="stripeBlurVal">0.3</span></label>
+            <input type="range" id="stripeBlur" min="0" max="1" step="0.05" value="0.3">
+        </div>
+
+        <div class="control-group">
+            <label>Random Seed <span class="value" id="seedVal">42</span></label>
+            <input type="range" id="seed" min="1" max="1000" step="1" value="42">
+        </div>
+
+        <button id="randomize">Randomize Seed</button>
+        <button id="download">Download PNG</button>
+
+        <div class="section-title">Share Preset</div>
+        <div class="preset-row">
+            <input type="text" id="presetString" placeholder="Paste preset here...">
+            <button id="copyPreset">Copy URL</button>
+        </div>
+    </div>
+
+    <div class="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const gl = canvas.getContext('webgl', { preserveDrawingBuffer: true });
+
+        if (!gl) {
+            alert('WebGL not supported');
+            throw new Error('WebGL not supported');
+        }
+
+        // Seeded random number generator
+        function seededRandom(seed) {
+            let s = seed;
+            return function() {
+                s = Math.sin(s * 9999.1) * 10000;
+                return s - Math.floor(s);
+            };
+        }
+
+        // Poisson disk sampling with relaxation
+        function generatePoissonDiskSamples(count, minDist, seed) {
+            const random = seededRandom(seed);
+            const samples = [];
+            const cellSize = minDist / Math.sqrt(2);
+            const gridWidth = Math.ceil(1 / cellSize);
+            const grid = new Array(gridWidth * gridWidth).fill(null);
+
+            function gridIndex(x, y) {
+                const gx = Math.floor(x / cellSize);
+                const gy = Math.floor(y / cellSize);
+                if (gx < 0 || gx >= gridWidth || gy < 0 || gy >= gridWidth) return -1;
+                return gy * gridWidth + gx;
+            }
+
+            function isValidPoint(x, y) {
+                if (x < 0 || x >= 1 || y < 0 || y >= 1) return false;
+
+                const gx = Math.floor(x / cellSize);
+                const gy = Math.floor(y / cellSize);
+
+                // Check 5x5 neighborhood
+                for (let dy = -2; dy <= 2; dy++) {
+                    for (let dx = -2; dx <= 2; dx++) {
+                        const nx = gx + dx;
+                        const ny = gy + dy;
+                        if (nx < 0 || nx >= gridWidth || ny < 0 || ny >= gridWidth) continue;
+
+                        const idx = ny * gridWidth + nx;
+                        const neighbor = grid[idx];
+                        if (neighbor) {
+                            const distSq = (x - neighbor.x) ** 2 + (y - neighbor.y) ** 2;
+                            if (distSq < minDist * minDist) return false;
+                        }
+                    }
+                }
+                return true;
+            }
+
+            function addPoint(x, y, size) {
+                const point = { x, y, size };
+                samples.push(point);
+                const idx = gridIndex(x, y);
+                if (idx >= 0) grid[idx] = point;
+                return point;
+            }
+
+            // Start with a random point
+            const startX = random();
+            const startY = random();
+            addPoint(startX, startY, random());
+
+            const activeList = [samples[0]];
+            const maxAttempts = 30;
+
+            while (activeList.length > 0 && samples.length < count) {
+                const idx = Math.floor(random() * activeList.length);
+                const point = activeList[idx];
+                let found = false;
+
+                for (let i = 0; i < maxAttempts; i++) {
+                    const angle = random() * Math.PI * 2;
+                    const dist = minDist + random() * minDist;
+                    const newX = point.x + Math.cos(angle) * dist;
+                    const newY = point.y + Math.sin(angle) * dist;
+
+                    if (isValidPoint(newX, newY)) {
+                        const newPoint = addPoint(newX, newY, random());
+                        activeList.push(newPoint);
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    activeList.splice(idx, 1);
+                }
+            }
+
+            // If we need more points, add them with relaxed constraints
+            let attempts = 0;
+            while (samples.length < count && attempts < count * 10) {
+                const x = random();
+                const y = random();
+                if (isValidPoint(x, y)) {
+                    addPoint(x, y, random());
+                }
+                attempts++;
+            }
+
+            return samples;
+        }
+
+        // Vertex shader
+        const vertexShaderSource = `
+            attribute vec2 a_position;
+            varying vec2 v_uv;
+            void main() {
+                v_uv = a_position * 0.5 + 0.5;
+                gl_Position = vec4(a_position, 0.0, 1.0);
+            }
+        `;
+
+        // Fragment shader with texture-based spot lookup
+        const fragmentShaderSource = `
+            precision highp float;
+            varying vec2 v_uv;
+
+            uniform vec3 u_bgColor;
+            uniform vec3 u_spotColor;
+            uniform float u_spotSize;
+            uniform float u_spotSizeVar;
+            uniform float u_blur;
+            uniform float u_stripeAmount;
+            uniform float u_stripeWidth;
+            uniform float u_stripeFreq;
+            uniform float u_bgNoise;
+            uniform float u_bgNoiseScale;
+            uniform float u_seed;
+            uniform sampler2D u_spotTexture;
+            uniform float u_spotCount;
+            uniform float u_shapeVar;
+            uniform float u_voronoi;
+            uniform float u_cellGap;
+            uniform float u_stripeBlur;
+
+            // Hash for noise
+            float hash(vec2 p) {
+                p = fract(p * vec2(123.34, 456.21));
+                p += dot(p, p + 45.32);
+                return fract(p.x * p.y);
+            }
+
+            // Perlin-style noise
+            float noise(vec2 p) {
+                vec2 i = floor(p);
+                vec2 f = fract(p);
+                f = f * f * (3.0 - 2.0 * f);
+
+                float a = hash(i + vec2(0.0, 0.0));
+                float b = hash(i + vec2(1.0, 0.0));
+                float c = hash(i + vec2(0.0, 1.0));
+                float d = hash(i + vec2(1.0, 1.0));
+
+                return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+            }
+
+            // Fractal Brownian Motion
+            float fbm(vec2 p) {
+                float value = 0.0;
+                float amplitude = 0.5;
+                for (int i = 0; i < 5; i++) {
+                    value += amplitude * noise(p);
+                    p *= 2.0;
+                    amplitude *= 0.5;
+                }
+                return value;
+            }
+
+            // Vertical stripes with waviness and blur
+            float stripes(vec2 uv, float width, float freq, float seed, float blur) {
+                float wave = fbm(vec2(uv.y * 3.0, seed)) * 0.1;
+                float x = uv.x + wave;
+                float stripe = sin(x * freq * 6.28318) * 0.5 + 0.5;
+                float edge = width * blur * 0.5;
+                return smoothstep(0.5 - width - edge, 0.5 - width + edge, stripe) *
+                       smoothstep(0.5 + width + edge, 0.5 + width - edge, stripe);
+            }
+
+            void main() {
+                vec2 uv = v_uv;
+
+                // Background with noise variation
+                float bgVariation = fbm(uv * u_bgNoiseScale + u_seed) * u_bgNoise;
+                vec3 bg = u_bgColor * (1.0 - u_bgNoise * 0.5 + bgVariation);
+
+                // Find closest and second-closest spots for Voronoi
+                float minDist1 = 1000.0;
+                float minDist2 = 1000.0;
+                int closestIdx = 0;
+                float closestSizeRand = 0.0;
+                vec2 closestPos = vec2(0.0);
+
+                for (int i = 0; i < 5000; i++) {
+                    if (float(i) >= u_spotCount) break;
+
+                    float texX = (float(i) + 0.5) / 5000.0;
+                    vec4 spotData = texture2D(u_spotTexture, vec2(texX, 0.5));
+                    vec2 spotPos = spotData.xy;
+
+                    float d = length(uv - spotPos);
+
+                    if (d < minDist1) {
+                        minDist2 = minDist1;
+                        minDist1 = d;
+                        closestIdx = i;
+                        closestSizeRand = spotData.z;
+                        closestPos = spotPos;
+                    } else if (d < minDist2) {
+                        minDist2 = d;
+                    }
+                }
+
+                // Calculate circular spot mask
+                float circleSpotMask = 0.0;
+                for (int i = 0; i < 5000; i++) {
+                    if (float(i) >= u_spotCount) break;
+
+                    float texX = (float(i) + 0.5) / 5000.0;
+                    vec4 spotData = texture2D(u_spotTexture, vec2(texX, 0.5));
+
+                    vec2 spotPos = spotData.xy;
+                    float sizeRand = spotData.z;
+
+                    float spotRadius = u_spotSize * (1.0 - u_spotSizeVar + u_spotSizeVar * 2.0 * sizeRand);
+
+                    vec2 toPixel = uv - spotPos;
+                    float d = length(toPixel);
+
+                    float angle = atan(toPixel.y, toPixel.x);
+                    float shapeNoise = fbm(vec2(angle * 3.0 + sizeRand * 100.0, sizeRand * 50.0 + u_seed)) * 2.0 - 1.0;
+                    float distortedRadius = spotRadius * (1.0 + shapeNoise * u_shapeVar * 0.5);
+
+                    float spot = 1.0 - smoothstep(distortedRadius * (1.0 - u_blur), distortedRadius, d);
+                    circleSpotMask = max(circleSpotMask, spot);
+                }
+
+                // Calculate Voronoi cell mask
+                float edgeDist = (minDist2 - minDist1) * 0.5;
+
+                // Add shape variation to voronoi edges
+                vec2 toPixel = uv - closestPos;
+                float angle = atan(toPixel.y, toPixel.x);
+                float shapeNoise = fbm(vec2(angle * 3.0 + closestSizeRand * 100.0, closestSizeRand * 50.0 + u_seed)) * 2.0 - 1.0;
+                float edgeVariation = shapeNoise * u_shapeVar * 0.03;
+
+                float cellEdge = u_cellGap + edgeVariation;
+                float voronoiMask = 1.0 - smoothstep(cellEdge * (1.0 - u_blur), cellEdge, edgeDist);
+                voronoiMask = 1.0 - voronoiMask;
+
+                // Blend between circle spots and voronoi cells
+                float spotMask = mix(circleSpotMask, voronoiMask, u_voronoi);
+
+                // Stripes
+                float stripeMask = stripes(uv, u_stripeWidth, u_stripeFreq, u_seed, u_stripeBlur) * u_stripeAmount;
+
+                // Combine spots and stripes
+                float combinedMask = max(spotMask, stripeMask);
+
+                // Final color
+                vec3 color = mix(bg, u_spotColor, combinedMask);
+
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `;
+
+        function createShader(gl, type, source) {
+            const shader = gl.createShader(type);
+            gl.shaderSource(shader, source);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                console.error(gl.getShaderInfoLog(shader));
+                gl.deleteShader(shader);
+                return null;
+            }
+            return shader;
+        }
+
+        function createProgram(gl, vertexShader, fragmentShader) {
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                console.error(gl.getProgramInfoLog(program));
+                gl.deleteProgram(program);
+                return null;
+            }
+            return program;
+        }
+
+        const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+        const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+        const program = createProgram(gl, vertexShader, fragmentShader);
+
+        // Fullscreen quad
+        const positions = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+
+        const positionLocation = gl.getAttribLocation(program, 'a_position');
+
+        // Uniform locations
+        const uniforms = {
+            bgColor: gl.getUniformLocation(program, 'u_bgColor'),
+            spotColor: gl.getUniformLocation(program, 'u_spotColor'),
+            spotSize: gl.getUniformLocation(program, 'u_spotSize'),
+            spotSizeVar: gl.getUniformLocation(program, 'u_spotSizeVar'),
+            blur: gl.getUniformLocation(program, 'u_blur'),
+            stripeAmount: gl.getUniformLocation(program, 'u_stripeAmount'),
+            stripeWidth: gl.getUniformLocation(program, 'u_stripeWidth'),
+            stripeFreq: gl.getUniformLocation(program, 'u_stripeFreq'),
+            bgNoise: gl.getUniformLocation(program, 'u_bgNoise'),
+            bgNoiseScale: gl.getUniformLocation(program, 'u_bgNoiseScale'),
+            seed: gl.getUniformLocation(program, 'u_seed'),
+            spotTexture: gl.getUniformLocation(program, 'u_spotTexture'),
+            spotCount: gl.getUniformLocation(program, 'u_spotCount'),
+            shapeVar: gl.getUniformLocation(program, 'u_shapeVar'),
+            voronoi: gl.getUniformLocation(program, 'u_voronoi'),
+            cellGap: gl.getUniformLocation(program, 'u_cellGap'),
+            stripeBlur: gl.getUniformLocation(program, 'u_stripeBlur')
+        };
+
+        // Create spot texture
+        const spotTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, spotTexture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        // Convert hex color to RGB array
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? [
+                parseInt(result[1], 16) / 255,
+                parseInt(result[2], 16) / 255,
+                parseInt(result[3], 16) / 255
+            ] : [0, 0, 0];
+        }
+
+        let currentSpots = [];
+        let needsSpotRegeneration = true;
+
+        function regenerateSpots() {
+            const spotCount = parseInt(document.getElementById('spotCount').value);
+            const minSpacing = parseFloat(document.getElementById('minSpacing').value);
+            const seed = parseFloat(document.getElementById('seed').value);
+
+            currentSpots = generatePoissonDiskSamples(spotCount, minSpacing, seed);
+
+            // Create texture data
+            const textureData = new Float32Array(5000 * 4);
+            for (let i = 0; i < Math.min(currentSpots.length, 5000); i++) {
+                textureData[i * 4] = currentSpots[i].x;
+                textureData[i * 4 + 1] = currentSpots[i].y;
+                textureData[i * 4 + 2] = currentSpots[i].size;
+                textureData[i * 4 + 3] = 1.0;
+            }
+
+            // Upload to texture (using FLOAT if available, otherwise UNSIGNED_BYTE)
+            const ext = gl.getExtension('OES_texture_float');
+            if (ext) {
+                gl.bindTexture(gl.TEXTURE_2D, spotTexture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 5000, 1, 0, gl.RGBA, gl.FLOAT, textureData);
+            } else {
+                // Fallback to UNSIGNED_BYTE
+                const byteData = new Uint8Array(5000 * 4);
+                for (let i = 0; i < Math.min(currentSpots.length, 5000); i++) {
+                    byteData[i * 4] = Math.floor(currentSpots[i].x * 255);
+                    byteData[i * 4 + 1] = Math.floor(currentSpots[i].y * 255);
+                    byteData[i * 4 + 2] = Math.floor(currentSpots[i].size * 255);
+                    byteData[i * 4 + 3] = 255;
+                }
+                gl.bindTexture(gl.TEXTURE_2D, spotTexture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 5000, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, byteData);
+            }
+
+            needsSpotRegeneration = false;
+        }
+
+        function render() {
+            if (needsSpotRegeneration) {
+                regenerateSpots();
+            }
+
+            const width = parseInt(document.getElementById('width').value);
+            const height = parseInt(document.getElementById('height').value);
+            canvas.width = width;
+            canvas.height = height;
+            gl.viewport(0, 0, width, height);
+
+            gl.useProgram(program);
+
+            // Set uniforms
+            const bgColor = hexToRgb(document.getElementById('bgColor').value);
+            const spotColor = hexToRgb(document.getElementById('spotColor').value);
+
+            gl.uniform3fv(uniforms.bgColor, bgColor);
+            gl.uniform3fv(uniforms.spotColor, spotColor);
+            gl.uniform1f(uniforms.spotSize, parseFloat(document.getElementById('spotSize').value));
+            gl.uniform1f(uniforms.spotSizeVar, parseFloat(document.getElementById('spotSizeVar').value));
+            gl.uniform1f(uniforms.blur, parseFloat(document.getElementById('blur').value));
+            gl.uniform1f(uniforms.stripeAmount, parseFloat(document.getElementById('stripeAmount').value));
+            gl.uniform1f(uniforms.stripeWidth, parseFloat(document.getElementById('stripeWidth').value));
+            gl.uniform1f(uniforms.stripeFreq, parseFloat(document.getElementById('stripeFreq').value));
+            gl.uniform1f(uniforms.bgNoise, parseFloat(document.getElementById('bgNoise').value));
+            gl.uniform1f(uniforms.bgNoiseScale, parseFloat(document.getElementById('bgNoiseScale').value));
+            gl.uniform1f(uniforms.seed, parseFloat(document.getElementById('seed').value));
+            gl.uniform1f(uniforms.spotCount, currentSpots.length);
+            gl.uniform1f(uniforms.shapeVar, parseFloat(document.getElementById('shapeVar').value));
+            gl.uniform1f(uniforms.voronoi, parseFloat(document.getElementById('voronoi').value));
+            gl.uniform1f(uniforms.cellGap, parseFloat(document.getElementById('cellGap').value));
+            gl.uniform1f(uniforms.stripeBlur, parseFloat(document.getElementById('stripeBlur').value));
+
+            // Bind spot texture
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, spotTexture);
+            gl.uniform1i(uniforms.spotTexture, 0);
+
+            // Draw
+            gl.enableVertexAttribArray(positionLocation);
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        }
+
+        // Update value displays and render
+        function setupControl(id, triggersRegeneration = false) {
+            const input = document.getElementById(id);
+            const valueSpan = document.getElementById(id + 'Val');
+
+            input.addEventListener('input', () => {
+                if (valueSpan) {
+                    valueSpan.textContent = input.value;
+                }
+                if (triggersRegeneration) {
+                    needsSpotRegeneration = true;
+                }
+                render();
+            });
+        }
+
+        // Setup width/height with synced text fields
+        function setupSizeControl(sliderId, numId) {
+            const slider = document.getElementById(sliderId);
+            const num = document.getElementById(numId);
+
+            slider.addEventListener('input', () => {
+                num.value = slider.value;
+                render();
+                updatePresetString();
+            });
+
+            num.addEventListener('input', () => {
+                const val = Math.max(64, Math.min(8192, parseInt(num.value) || 64));
+                num.value = val;
+                slider.value = Math.min(val, 4096);
+                render();
+                updatePresetString();
+            });
+        }
+
+        setupSizeControl('width', 'widthNum');
+        setupSizeControl('height', 'heightNum');
+
+        // Setup controls - some trigger spot regeneration, some don't
+        setupControl('bgNoise', false);
+        setupControl('bgNoiseScale', false);
+        setupControl('spotSize', false);
+        setupControl('spotSizeVar', false);
+        setupControl('blur', false);
+        setupControl('shapeVar', false);
+        setupControl('voronoi', false);
+        setupControl('cellGap', false);
+        setupControl('stripeAmount', false);
+        setupControl('stripeWidth', false);
+        setupControl('stripeFreq', false);
+        setupControl('stripeBlur', false);
+
+        // These controls regenerate spots
+        setupControl('spotCount', true);
+        setupControl('minSpacing', true);
+        setupControl('seed', true);
+
+        // Color inputs
+        document.getElementById('bgColor').addEventListener('input', render);
+        document.getElementById('spotColor').addEventListener('input', render);
+
+        // Randomize button
+        document.getElementById('randomize').addEventListener('click', () => {
+            const newSeed = Math.floor(Math.random() * 1000) + 1;
+            document.getElementById('seed').value = newSeed;
+            document.getElementById('seedVal').textContent = newSeed;
+            needsSpotRegeneration = true;
+            render();
+        });
+
+        // Download button
+        document.getElementById('download').addEventListener('click', () => {
+            render();
+            const link = document.createElement('a');
+            link.download = 'whale-shark-skin.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+
+        // Preset string functionality
+        const presetControls = [
+            'width', 'height', 'bgColor', 'spotColor', 'bgNoise', 'bgNoiseScale',
+            'spotSize', 'spotSizeVar', 'spotCount', 'minSpacing', 'blur',
+            'shapeVar', 'voronoi', 'cellGap', 'stripeAmount', 'stripeWidth',
+            'stripeFreq', 'stripeBlur', 'seed'
+        ];
+
+        function getPresetString() {
+            const values = presetControls.map(id => document.getElementById(id).value);
+            return btoa(JSON.stringify(values));
+        }
+
+        function applyPresetString(str) {
+            try {
+                const values = JSON.parse(atob(str));
+                if (!Array.isArray(values) || values.length !== presetControls.length) {
+                    throw new Error('Invalid preset');
+                }
+
+                let needsRegen = false;
+                presetControls.forEach((id, i) => {
+                    const el = document.getElementById(id);
+                    const valSpan = document.getElementById(id + 'Val');
+                    el.value = values[i];
+                    if (valSpan) valSpan.textContent = values[i];
+
+                    // Sync number inputs for width/height
+                    if (id === 'width') document.getElementById('widthNum').value = values[i];
+                    if (id === 'height') document.getElementById('heightNum').value = values[i];
+
+                    if (id === 'spotCount' || id === 'minSpacing' || id === 'seed') {
+                        needsRegen = true;
+                    }
+                });
+
+                if (needsRegen) needsSpotRegeneration = true;
+                render();
+                updatePresetString();
+            } catch (e) {
+                console.error('Invalid preset string:', e);
+            }
+        }
+
+        let updatingFromHash = false;
+
+        function updatePresetString() {
+            const preset = getPresetString();
+            document.getElementById('presetString').value = preset;
+
+            // Update URL hash without triggering hashchange handler
+            if (!updatingFromHash) {
+                history.replaceState(null, '', '#' + preset);
+            }
+        }
+
+        function loadFromHash() {
+            const hash = window.location.hash.slice(1);
+            if (hash) {
+                updatingFromHash = true;
+                applyPresetString(hash);
+                updatingFromHash = false;
+            }
+        }
+
+        // Load preset from URL on page load
+        window.addEventListener('hashchange', loadFromHash);
+
+        // Copy button - now copies the full URL
+        document.getElementById('copyPreset').addEventListener('click', () => {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                const btn = document.getElementById('copyPreset');
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy URL', 1500);
+            });
+        });
+
+        // Paste/change detection
+        document.getElementById('presetString').addEventListener('change', (e) => {
+            applyPresetString(e.target.value);
+        });
+
+        // Update preset string on any control change
+        const originalSetupControl = setupControl;
+        presetControls.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', updatePresetString);
+            }
+        });
+
+        // Check for preset in URL hash on load, otherwise render defaults
+        if (window.location.hash.length > 1) {
+            loadFromHash();
+        } else {
+            render();
+            updatePresetString();
+        }
+    </script>
+</body>
+</html>
