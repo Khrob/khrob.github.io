@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cottesloe Films</title>
+    <link rel="icon" type="image/svg+xml" href="logo.svg">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #060e1a;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas#bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        .vignette {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+            pointer-events: none;
+            background:
+                radial-gradient(ellipse 70% 65% at 0% 0%, rgba(4,8,16,0.97) 0%, transparent 70%),
+                radial-gradient(ellipse 70% 65% at 100% 0%, rgba(4,8,16,0.97) 0%, transparent 70%),
+                radial-gradient(ellipse 55% 50% at 0% 100%, rgba(4,8,16,0.55) 0%, transparent 55%),
+                radial-gradient(ellipse 55% 50% at 100% 100%, rgba(4,8,16,0.55) 0%, transparent 55%),
+                radial-gradient(ellipse 90% 85% at 50% 50%, transparent 35%, rgba(4,8,16,0.55) 100%);
+        }
+
+        .content {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 2;
+            opacity: 0;
+            animation: fadeIn 2s ease 0.4s forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translate(-50%, -48%); }
+            to   { opacity: 1; transform: translate(-50%, -50%); }
+        }
+
+        .logo svg {
+            width: clamp(260px, 38vw, 500px);
+            height: auto;
+            filter: drop-shadow(0 0 12px rgba(150,200,255,0.35))
+                    drop-shadow(0 0 40px rgba(120,180,250,0.23))
+                    drop-shadow(0 0 90px rgba(100,160,240,0.15))
+                    drop-shadow(0 0 180px rgba(80,140,220,0.09));
+        }
+
+        .subtitle {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: clamp(0.7rem, 1.1vw, 0.95rem);
+            font-weight: 300;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: rgba(180,200,220,0.55);
+            margin-top: 1.8rem;
+        }
+
+        .description {
+            font-family: Georgia, 'Times New Roman', Times, serif;
+            font-size: clamp(0.82rem, 1vw, 0.95rem);
+            font-weight: 400;
+            font-style: italic;
+            line-height: 1.7;
+            color: rgba(160,180,200,0.4);
+            margin-top: 0.9rem;
+            max-width: 440px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .contact {
+            display: inline-block;
+            margin-top: 2.2rem;
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: clamp(0.6rem, 0.8vw, 0.75rem);
+            font-weight: 400;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: rgba(140,175,210,0.5);
+            text-decoration: none;
+            padding: 0.65em 2em;
+            border: 1px solid rgba(140,175,210,0.18);
+            border-radius: 1px;
+            transition: color 0.5s ease, border-color 0.5s ease;
+        }
+
+        .contact:hover {
+            color: rgba(200,225,250,0.85);
+            border-color: rgba(200,225,250,0.35);
+        }
+
+        /* Fallback if WebGL fails */
+        .no-webgl canvas#bg { display: none; }
+        .no-webgl body {
+            background: radial-gradient(ellipse at center, #0c1a2e 0%, #060e1a 100%);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="bg"></canvas>
+    <div class="vignette"></div>
+
+    <div class="content">
+        <div class="logo">
+            <svg viewBox="0 0 1024 512" xmlns="http://www.w3.org/2000/svg">
+                <path fill="#ffffffdd" fill-rule="evenodd" stroke="none" d="M 875.501221 461.664978 C 902.918457 475.797546 928.074341 477.210785 939.380432 476.362885 C 977.255676 474.384308 1000.433167 448.663025 1000.433167 415.027466 C 1000.433167 382.805237 973.298645 364.715546 941.924255 353.126831 C 930.335449 349.169739 920.44281 344.08197 919.312073 332.775879 C 918.464233 321.469849 924.96521 311.011719 939.380432 310.163757 C 945.598755 309.881134 958.318054 309.598511 980.647522 318.643372 L 985.735229 279.63739 C 959.731262 270.59259 945.881409 270.59259 935.423218 271.157898 C 901.78772 272.853821 878.327698 298.857697 878.327698 332.775879 C 878.327698 366.694092 906.592773 382.805237 938.249878 394.393921 C 949.555786 398.351044 958.318054 403.438782 959.166077 415.027466 C 960.296631 426.050903 950.121155 434.530457 938.249878 435.378418 C 928.922241 436.226318 903.766296 435.661041 880.588806 419.267273 L 875.501221 461.664978 Z M 399.86319 272.571106 L 399.86319 312.990326 L 339.375824 312.990326 L 339.375824 353.409485 L 390.81839 353.409485 L 390.81839 393.828613 L 339.375824 393.828613 L 339.375824 474.666962 L 298.956818 474.666962 L 298.956818 272.571106 L 399.86319 272.571106 Z M 487.983002 272.571106 L 487.983002 474.666962 L 447.563965 474.666962 L 447.563965 272.571106 L 487.983002 272.571106 Z M 749.764343 372.562347 L 657.054504 269.461975 L 657.054504 434.714569 L 656.723145 434.247803 L 573.909119 434.247803 L 573.909119 272.571106 L 533.489929 272.571106 L 533.489929 474.666901 L 657.054504 474.666901 L 657.054504 474.666962 L 698.039063 474.666962 L 698.039063 370.497681 L 749.764343 424.766724 L 801.489441 370.497681 L 801.206909 474.666962 L 842.191345 474.666962 L 842.191345 269.461975 L 749.764343 372.562347 Z M 282.756683 248.502716 C 421.821136 248.502716 421.821136 40.188599 282.756683 40.188599 C 143.692078 40.188599 143.692078 248.502716 282.756683 248.502716 Z M 186.645767 53.415802 C 186.645767 53.415802 177.4758 63.524414 173.732758 69.198364 C 169.323196 75.88269 162.626877 90.500519 162.626877 90.500519 C 154.995239 86.543396 142.232864 81.738342 124.708481 81.738342 C 44.718143 81.738342 44.718143 204.974426 124.708481 204.974426 C 142.232864 204.974426 153.213242 199.886658 160.844879 195.929535 C 160.844879 195.929535 166.883484 209.375824 170.863205 215.545837 C 175.335327 222.479248 186.302139 234.892426 186.302139 234.892426 C 154.473801 251.663757 138.84111 251.980591 124.708481 251.980591 C -12.377465 251.980591 -12.094783 36.732208 124.708481 36.732208 C 138.84111 36.732208 168.020966 41.27829 186.645767 53.415802 Z M 487.224091 83.999603 L 487.224091 245.676208 L 446.804901 245.676208 L 446.804901 83.999603 L 399.36261 83.999603 C 399.36261 83.999603 392.33493 69.723572 387.514832 63.459259 C 381.864044 56.115326 367.797485 43.863098 367.797485 43.863098 L 624.927002 43.863098 L 624.927002 83.999603 L 574.61499 83.999603 L 574.61499 245.676208 L 534.19574 245.676208 L 534.19574 83.999603 L 487.224091 83.999603 Z M 282.756683 206.670288 C 201.918228 206.670288 201.918228 81.738342 282.756683 81.738342 C 363.59491 81.738342 363.59491 206.670288 282.756683 206.670288 Z"/>
+            </svg>
+        </div>
+
+        <!-- ✏️ EDIT YOUR TEXT HERE -->
+        <p class="subtitle">Stories on Screens</p>
+        <p class="description">Our mission is to tell bold, fun, entertaining stories that touch hearts and stretch horizons.</p>
+
+        <a class="contact" href="mailto:contact@cottesloefilms.com">Contact Us</a>
+    </div>
+
+    <script>
+    (function() {
+        const canvas = document.getElementById('bg');
+        const gl = canvas.getContext('webgl');
+
+        if (!gl) {
+            document.body.classList.add('no-webgl');
+            return;
+        }
+
+        /* ── Vertex Shader ── */
+        const vertSrc = `
+            attribute vec2 a_pos;
+            varying vec2 v_uv;
+            void main() {
+                v_uv = a_pos * 0.5 + 0.5;
+                gl_Position = vec4(a_pos, 0.0, 1.0);
+            }
+        `;
+
+        /* ── Fragment Shader ── */
+        const fragSrc = `
+            precision highp float;
+            varying vec2 v_uv;
+            uniform float u_time;
+            uniform vec2 u_res;
+
+            /* ---- Hash ---- */
+            float hash(vec2 p) {
+                return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+            }
+            vec2 hash2(vec2 p) {
+                p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+                return fract(sin(p) * 43758.5453123);
+            }
+
+            /* ---- Value Noise ---- */
+            float noise(vec2 p) {
+                vec2 i = floor(p);
+                vec2 f = fract(p);
+                f = f * f * (3.0 - 2.0 * f);
+                float a = hash(i);
+                float b = hash(i + vec2(1.0, 0.0));
+                float c = hash(i + vec2(0.0, 1.0));
+                float d = hash(i + vec2(1.0, 1.0));
+                return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+            }
+
+            /* ---- Fractal Brownian Motion ---- */
+            float fbm(vec2 p) {
+                float v = 0.0, a = 0.5;
+                mat2 rot = mat2(0.866, -0.5, 0.5, 0.866);
+                for (int i = 0; i < 5; i++) {
+                    v += a * noise(p);
+                    p = rot * p * 2.0;
+                    a *= 0.5;
+                }
+                return v;
+            }
+
+            /* ---- Whale-shark spot layer ---- */
+            /*   Jittered-grid spots with organic noise distortion.
+                 Naturally tiles because hash repeats with floor(). */
+            float spotLayer(vec2 uv, float scale, float spotSz, float seed) {
+                vec2 p = uv * scale;
+                /* Organic distortion breaks grid regularity */
+                p += vec2(
+                    noise(p * 0.35 + seed),
+                    noise(p * 0.35 + seed + 43.0)
+                ) * 0.45;
+
+                vec2 ip = floor(p);
+                vec2 fp = fract(p);
+                float mask = 0.0;
+
+                for (int y = -1; y <= 1; y++) {
+                    for (int x = -1; x <= 1; x++) {
+                        vec2 n  = vec2(float(x), float(y));
+                        vec2 cell = ip + n;
+                        vec2 o  = hash2(cell + vec2(seed));
+                        float sz = spotSz * (0.45 + 0.9 * hash(cell + vec2(seed + 77.0)));
+                        float d  = length(fp - n - o);
+                        mask = max(mask, 1.0 - smoothstep(sz * 0.15, sz, d));
+                    }
+                }
+                return mask;
+            }
+
+            /* ---- Combined whale-shark pattern ---- */
+            float whaleshark(vec2 uv) {
+                float p = 0.0;
+                p += spotLayer(uv, 7.0,  0.38, 0.0)   * 0.55;
+                p += spotLayer(uv, 11.5, 0.30, 42.0)   * 0.38;
+                p += spotLayer(uv, 17.0, 0.24, 91.0)    * 0.22;
+                /* Faint extra scatter */
+                p += spotLayer(uv, 24.0, 0.18, 155.0)   * 0.12;
+                return clamp(p, 0.0, 1.0);
+            }
+
+            /* ---- Subtle vertical stripes ---- */
+            float stripes(vec2 uv) {
+                float wave = fbm(vec2(uv.y * 1.8, 7.0)) * 0.22;
+                float s = sin((uv.x + wave) * 32.0) * 0.5 + 0.5;
+                return smoothstep(0.38, 0.62, s);
+            }
+
+            /* ---- 2-D caustic lighting ---- */
+            /*   Two animated Voronoi layers multiplied together
+                 produce the characteristic bright-network pattern. */
+            float voronoi(vec2 p, float t, float spd) {
+                vec2 ip = floor(p);
+                vec2 fp = fract(p);
+                float md = 8.0;
+                for (int y = -1; y <= 1; y++) {
+                    for (int x = -1; x <= 1; x++) {
+                        vec2 n = vec2(float(x), float(y));
+                        vec2 o = hash2(ip + n);
+                        o = 0.5 + 0.42 * sin(t * spd + 6.2831 * o);
+                        md = min(md, length(fp - n - o));
+                    }
+                }
+                return md;
+            }
+
+            float caustics(vec2 uv, float t) {
+                float c1 = voronoi(uv * 4.2  + vec2(t *  0.045, t * 0.025), t, 0.35);
+                float c2 = voronoi(uv * 5.8  + vec2(t * -0.035, t * 0.055) + 97.0, t, 0.25);
+                float c3 = voronoi(uv * 8.0  + vec2(t *  0.02, t * -0.03) + 200.0, t, 0.45);
+                /* Multiply layers for realism, third layer adds fine detail */
+                float c = c1 * c2;
+                c = pow(c, 0.55);
+                c = smoothstep(0.04, 0.42, c);
+                /* Blend in fine caustic detail */
+                float fine = pow(c2 * c3, 0.6);
+                fine = smoothstep(0.05, 0.4, fine);
+                c = mix(c, fine, 0.3);
+                return c;
+            }
+
+            /* ======== Main ======== */
+            void main() {
+                vec2 uv = v_uv;
+                float aspect = u_res.x / u_res.y;
+                vec2 auv = vec2(uv.x * aspect, uv.y);
+
+                /* Slow diagonal scroll */
+                vec2 scrollUV = auv + u_time * vec2(0.012, 0.004);
+
+                /* Whale-shark spots + faint stripes */
+                float pattern = whaleshark(scrollUV);
+                pattern += stripes(scrollUV) * 0.10;
+                pattern = clamp(pattern, 0.0, 1.0);
+
+                /* Colour palette — deep ocean */
+                vec3 bgCol   = vec3(0.030, 0.068, 0.130);
+                vec3 spotCol = vec3(0.090, 0.175, 0.290);
+                vec3 col = mix(bgCol, spotCol, pattern);
+
+                /* Background noise variation */
+                float bgN = fbm(scrollUV * 2.5 + 100.0);
+                col *= 0.88 + bgN * 0.24;
+
+                /* Caustic light */
+                float caust = caustics(auv, u_time);
+                col += caust * vec3(0.035, 0.068, 0.110);
+
+                /* Film grain */
+                float grain = (hash(uv * u_res + fract(u_time * 37.0) * 173.0) - 0.5) * 0.014;
+                col += grain;
+
+                gl_FragColor = vec4(max(col, 0.0), 1.0);
+            }
+        `;
+
+        /* ── Compile helpers ── */
+        function makeShader(type, src) {
+            const s = gl.createShader(type);
+            gl.shaderSource(s, src);
+            gl.compileShader(s);
+            if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+                console.error(gl.getShaderInfoLog(s));
+                gl.deleteShader(s);
+                return null;
+            }
+            return s;
+        }
+
+        const vs = makeShader(gl.VERTEX_SHADER, vertSrc);
+        const fs = makeShader(gl.FRAGMENT_SHADER, fragSrc);
+        if (!vs || !fs) { document.body.classList.add('no-webgl'); return; }
+
+        const prog = gl.createProgram();
+        gl.attachShader(prog, vs);
+        gl.attachShader(prog, fs);
+        gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+            console.error(gl.getProgramInfoLog(prog));
+            document.body.classList.add('no-webgl');
+            return;
+        }
+
+        /* Full-screen quad */
+        const buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+
+        const aPos   = gl.getAttribLocation(prog, 'a_pos');
+        const uTime  = gl.getUniformLocation(prog, 'u_time');
+        const uRes   = gl.getUniformLocation(prog, 'u_res');
+
+        /* Resize — cap pixel ratio for performance */
+        function resize() {
+            const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+            canvas.width  = window.innerWidth  * dpr;
+            canvas.height = window.innerHeight * dpr;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        /* Render loop */
+        const t0 = performance.now();
+        (function frame() {
+            const t = (performance.now() - t0) * 0.001;
+
+            gl.useProgram(prog);
+            gl.uniform1f(uTime, t);
+            gl.uniform2f(uRes, canvas.width, canvas.height);
+
+            gl.enableVertexAttribArray(aPos);
+            gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+            gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+            requestAnimationFrame(frame);
+        })();
+    })();
+    </script>
+</body>
+</html>
