@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Household Finances — Khrob & Katy</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f5f0; --card: #ffffff; --accent: #2d5a27; --accent-light: #e8f0e6;
+    --text: #1a1a1a; --muted: #6b7280; --border: #e5e5e0;
+    --red: #dc2626; --orange: #ea580c; --blue: #2563eb; --green: #16a34a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+
+  header { background: var(--accent); color: white; padding: 1.25rem 2rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+  header h1 { font-size: 1.4rem; font-weight: 600; }
+  header .sub { opacity: 0.85; font-size: 0.85rem; }
+  .hdr-btns { display: flex; gap: 0.5rem; }
+  .hdr-btns button { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 0.35rem 0.7rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+  .hdr-btns button:hover { background: rgba(255,255,255,0.3); }
+
+  .dash { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+
+  .strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+  .stat { background: var(--card); border-radius: 10px; padding: 0.9rem 1rem; border: 1px solid var(--border); }
+  .stat .lbl { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  .stat .val { font-size: 1.4rem; font-weight: 700; margin-top: 0.1rem; }
+  .stat .det { font-size: 0.75rem; color: var(--muted); margin-top: 0.1rem; }
+  .pos { color: var(--green); } .neg { color: var(--red); } .warn { color: var(--orange); }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.25rem; margin-bottom: 1.25rem; }
+  .card { background: var(--card); border-radius: 10px; padding: 1.25rem; border: 1px solid var(--border); }
+  .card h2 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem; padding-bottom: 0.4rem; border-bottom: 2px solid var(--accent-light); }
+
+  .row { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid #f0f0ec; }
+  .row:last-child { border-bottom: none; }
+  .row label { font-size: 0.82rem; flex: 1; }
+  .row input { width: 130px; text-align: right; padding: 0.3rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.82rem; background: #fafaf8; }
+  .row input:focus { outline: none; border-color: var(--accent); background: white; }
+  .pfx { color: var(--muted); font-size: 0.82rem; margin-right: 0.2rem; }
+  .ig { display: flex; align-items: center; }
+
+  .total { display: flex; justify-content: space-between; padding: 0.6rem 0; font-weight: 600; border-top: 2px solid var(--accent-light); margin-top: 0.4rem; font-size: 0.95rem; }
+
+  .acct-row { display: grid; grid-template-columns: 1fr 120px 120px; gap: 0.5rem; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid #f0f0ec; }
+  .acct-row:last-child { border-bottom: none; }
+  .acct-row input { text-align: right; padding: 0.3rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.82rem; background: #fafaf8; width: 100%; }
+  .acct-row input:focus { outline: none; border-color: var(--accent); background: white; }
+  .acct-row .name-input { text-align: left; }
+  .acct-hdr { font-size: 0.7rem; text-transform: uppercase; color: var(--muted); letter-spacing: 0.03em; font-weight: 600; }
+
+  .add-btn { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; background: var(--accent-light); border: 1px solid var(--accent); color: var(--accent); border-radius: 6px; cursor: pointer; font-size: 0.75rem; margin-top: 0.4rem; }
+  .add-btn:hover { background: var(--accent); color: white; }
+  .rm { background: none; border: none; color: var(--red); cursor: pointer; font-size: 0.9rem; opacity: 0.4; padding: 0 0.2rem; }
+  .rm:hover { opacity: 1; }
+
+  .burn-indicator { padding: 0.6rem 0.8rem; border-radius: 8px; margin-top: 0.5rem; font-size: 0.82rem; }
+  .burn-neg { background: #fef2f2; border: 1px solid #fecaca; color: var(--red); }
+  .burn-pos { background: #f0fdf4; border: 1px solid #bbf7d0; color: var(--green); }
+
+  .debt-row { display: grid; grid-template-columns: 1fr 100px 100px 70px 30px; gap: 0.4rem; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid #f0f0ec; }
+  .debt-row:last-child { border-bottom: none; }
+  .debt-row input, .debt-row select { padding: 0.3rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.82rem; background: #fafaf8; width: 100%; }
+  .debt-row input:focus, .debt-row select:focus { outline: none; border-color: var(--accent); background: white; }
+  .debt-row .name-input { text-align: left; }
+  .debt-row input[type="number"] { text-align: right; }
+  .debt-hdr { font-size: 0.7rem; text-transform: uppercase; color: var(--muted); letter-spacing: 0.03em; font-weight: 600; }
+
+  .chart-box { position: relative; height: 220px; margin-top: 0.75rem; }
+  .full { grid-column: 1 / -1; }
+
+  .notes { width: 100%; min-height: 70px; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 0.82rem; resize: vertical; background: #fafaf8; }
+
+  /* Monthly target table */
+  .target-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-top: 0.5rem; }
+  .target-table th { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 2px solid var(--accent-light); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 600; }
+  .target-table th:not(:first-child) { text-align: right; }
+  .target-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #f0f0ec; }
+  .target-table td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+  .target-table tr.current { background: #fffbeb; font-weight: 600; }
+  .target-table .need-more { color: var(--red); font-weight: 600; }
+  .target-table .covered { color: var(--green); }
+
+  /* History */
+  .hist-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; margin-top: 0.5rem; }
+  .hist-table th { text-align: right; padding: 0.35rem 0.5rem; border-bottom: 2px solid var(--accent-light); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 600; }
+  .hist-table th:first-child { text-align: left; }
+  .hist-table td { padding: 0.3rem 0.5rem; border-bottom: 1px solid #f0f0ec; text-align: right; font-variant-numeric: tabular-nums; }
+  .hist-table td:first-child { text-align: left; }
+  .hist-table tr:hover { background: #fafaf8; }
+  .record-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.4rem 0.8rem; background: var(--accent); border: none; color: white; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
+  .record-btn:hover { background: #234a1f; }
+  .trend-change { font-size: 0.68rem; margin-left: 0.2rem; }
+  .trend-up { color: var(--red); }
+  .trend-down { color: var(--green); }
+  .trend-up-good { color: var(--green); }
+  .trend-down-bad { color: var(--red); }
+
+  @media (max-width: 600px) { .dash { padding: 0.75rem; } .grid { grid-template-columns: 1fr; } .strip { grid-template-columns: repeat(2,1fr); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div><h1>Household Finances</h1><div class="sub">Khrob, Katy & Pilot — 2025–26</div></div>
+  <div class="hdr-btns">
+    <button onclick="exportData()">Save</button>
+    <button onclick="document.getElementById('imp').click()">Load</button>
+    <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
+    <button onclick="resetAll()">Reset</button>
+  </div>
+</header>
+
+<div class="dash">
+
+  <!-- Summary -->
+  <div class="strip">
+    <div class="stat"><div class="lbl">Money In</div><div class="val pos" id="sIn">$0</div><div class="det" id="sInD">per month</div></div>
+    <div class="stat"><div class="lbl">Money Out</div><div class="val neg" id="sOut">$0</div><div class="det" id="sOutD">per month</div></div>
+    <div class="stat"><div class="lbl">Monthly Gap</div><div class="val" id="sGap">$0</div><div class="det" id="sGapD">surplus or shortfall</div></div>
+    <div class="stat"><div class="lbl">Savings Runway</div><div class="val" id="sRunway">—</div><div class="det" id="sRunwayD">at current burn rate</div></div>
+    <div class="stat"><div class="lbl">Total Debts</div><div class="val neg" id="sDebts">$0</div><div class="det" id="sDebtsD">outstanding</div></div>
+  </div>
+
+  <!-- Overview (top of page) -->
+  <div class="grid">
+    <div class="card full">
+      <h2>Overview</h2>
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:1.25rem;">
+        <div><div style="font-size:0.8rem; color:var(--muted); margin-bottom:0.3rem;">Monthly Cash Flow</div><div class="chart-box"><canvas id="chFlow"></canvas></div></div>
+        <div><div style="font-size:0.8rem; color:var(--muted); margin-bottom:0.3rem;">Where the Money Goes</div><div class="chart-box"><canvas id="chBreak"></canvas></div></div>
+        <div><div style="font-size:0.8rem; color:var(--muted); margin-bottom:0.3rem;">Savings Projection (12 months)</div><div class="chart-box"><canvas id="chProject"></canvas></div></div>
+      </div>
+
+      <!-- Monthly targets table -->
+      <div style="margin-top:1.5rem;">
+        <h3 style="font-size:0.9rem; font-weight:600; margin-bottom:0.25rem;">What You Need Each Month</h3>
+        <p style="font-size:0.75rem; color:var(--muted); margin-bottom:0.5rem;">How much extra income you need beyond current earnings to (a) cover expenses and (b) also clear debts as they fall due. Green = covered, red = shortfall.</p>
+        <div style="overflow-x:auto;">
+          <table class="target-table" id="targetTable">
+            <thead><tr><th>Month</th><th>Expenses</th><th>Debts Due</th><th>Payments In</th><th>Total Needed</th><th>Current Income</th><th>Extra to Earn</th></tr></thead>
+            <tbody id="targetBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- Monthly Income -->
+    <div class="card">
+      <h2>Monthly Income</h2>
+      <div class="row"><label>Khrob — take-home pay</label><div class="ig"><span class="pfx">$</span><input type="number" id="incK" value="0" oninput="recalc()"></div></div>
+      <div class="row"><label>Katy — take-home pay</label><div class="ig"><span class="pfx">$</span><input type="number" id="incKa" value="0" oninput="recalc()"></div></div>
+      <div class="row"><label>Rental income</label><div class="ig"><span class="pfx">$</span><input type="number" id="incRent" value="0" oninput="recalc()"></div></div>
+      <div class="row"><label>Other income</label><div class="ig"><span class="pfx">$</span><input type="number" id="incOther" value="0" oninput="recalc()"></div></div>
+      <div class="total"><span>Total In</span><span class="pos" id="totIn">$0</span></div>
+    </div>
+
+    <!-- Monthly Outgoings -->
+    <div class="card">
+      <h2>Monthly Outgoings</h2>
+      <div class="row"><label>Credit card (all household)</label><div class="ig"><span class="pfx">$</span><input type="number" id="outCC" value="0" oninput="recalc()"></div></div>
+      <div class="row"><label>Mortgage — Home</label><div class="ig"><span class="pfx">$</span><input type="number" id="outMortHome" value="0" oninput="recalc()"></div></div>
+      <div class="row"><label>Mortgage — Investment</label><div class="ig"><span class="pfx">$</span><input type="number" id="outMortInv" value="0" oninput="recalc()"></div></div>
+      <div id="bizCostList"></div>
+      <button class="add-btn" onclick="addBiz()">+ Business cost</button>
+      <div id="otherOutList"></div>
+      <button class="add-btn" onclick="addOtherOut()">+ Other outgoing</button>
+      <div class="total"><span>Total Out</span><span class="neg" id="totOut">$0</span></div>
+    </div>
+
+    <!-- Accounts -->
+    <div class="card">
+      <h2>Account Balances</h2>
+      <p style="font-size:0.75rem; color:var(--muted); margin-bottom:0.5rem;">Track what's in each account right now.</p>
+      <div class="acct-row" style="border-bottom:1px solid var(--border); padding-bottom:0.3rem; margin-bottom:0.2rem;">
+        <span class="acct-hdr">Account</span><span class="acct-hdr" style="text-align:right;">Balance</span><span></span>
+      </div>
+      <div id="acctList"></div>
+      <button class="add-btn" onclick="addAcct()">+ Add account</button>
+      <div class="total"><span>Total Savings</span><span id="totSavings">$0</span></div>
+      <div class="burn-indicator" id="burnBox">—</div>
+    </div>
+
+    <!-- Debts -->
+    <div class="card">
+      <h2>Debts & Upcoming Bills</h2>
+      <p style="font-size:0.75rem; color:var(--muted); margin-bottom:0.5rem;">Track what you owe and when it's due.</p>
+      <div class="debt-row" style="border-bottom:1px solid var(--border); padding-bottom:0.3rem; margin-bottom:0.2rem;">
+        <span class="debt-hdr">What</span><span class="debt-hdr" style="text-align:right;">Amount</span><span class="debt-hdr">Due</span><span class="debt-hdr">Paid</span><span></span>
+      </div>
+      <div id="debtList"></div>
+      <button class="add-btn" onclick="addDebt()">+ Add debt / bill</button>
+      <div class="total"><span>Total Owing</span><span class="neg" id="totDebts">$0</span></div>
+      <div class="total" style="border-top:none; padding-top:0;"><span>Due within 3 months</span><span class="warn" id="debtsSoon">$0</span></div>
+      <div id="debtTimeline" style="margin-top:0.5rem;"></div>
+    </div>
+
+    <!-- Payments In -->
+    <div class="card">
+      <h2>Upcoming Payments In</h2>
+      <p style="font-size:0.75rem; color:var(--muted); margin-bottom:0.5rem;">One-off payments you're expecting to receive.</p>
+      <div class="debt-row" style="border-bottom:1px solid var(--border); padding-bottom:0.3rem; margin-bottom:0.2rem;">
+        <span class="debt-hdr">What</span><span class="debt-hdr" style="text-align:right;">Amount</span><span class="debt-hdr">Expected</span><span class="debt-hdr">Recd</span><span></span>
+      </div>
+      <div id="payInList"></div>
+      <button class="add-btn" onclick="addPayIn()">+ Add expected payment</button>
+      <div class="total"><span>Total Expected</span><span class="pos" id="totPayIn">$0</span></div>
+      <div class="total" style="border-top:none; padding-top:0;"><span>Due within 3 months</span><span style="color:var(--blue);" id="payInSoon">$0</span></div>
+      <div id="payInTimeline" style="margin-top:0.5rem;"></div>
+    </div>
+
+    <!-- Notes -->
+    <div class="card full">
+      <h2>Notes</h2>
+      <textarea class="notes" id="notes" placeholder="Upcoming bills, accountant questions, things to follow up..."></textarea>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- Data ----
+let bizCosts = [{ name: 'Business expense', amount: 0 }];
+let otherOuts = [];
+let accounts = [
+  { name: 'Savings', balance: 0 },
+  { name: 'Business savings', balance: 0 },
+  { name: 'Offset (Home)', balance: 0 },
+];
+let debts = [
+  { name: 'Tax bill (2024-25)', amount: 0, due: '2026-04', paid: false },
+  { name: 'Tax bill (2025-26)', amount: 0, due: '2027-04', paid: false },
+];
+let paymentsIn = [];
+let charts = {};
+
+// ---- Render helpers ----
+function esc(s) { return s.replace(/"/g,'&quot;'); }
+function fmt(n) { return (n<0?'-$':'$') + Math.abs(Math.round(n)).toLocaleString(); }
+function monthName(m) { return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(m-1)%12]||''; }
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// ---- List renders ----
+function renderBiz() {
+  const c = document.getElementById('bizCostList');
+  c.innerHTML = bizCosts.map((b,i) => `
+    <div class="row">
+      <label><input value="${esc(b.name)}" style="border:none;background:none;padding:0;font-size:0.82rem;width:180px;" onchange="bizCosts[${i}].name=this.value"></label>
+      <div class="ig"><span class="pfx">$</span><input type="number" value="${b.amount}" oninput="bizCosts[${i}].amount=parseFloat(this.value)||0; recalc()"></div>
+      <button class="rm" onclick="bizCosts.splice(${i},1); renderBiz(); recalc()">×</button>
+    </div>`).join('');
+}
+function addBiz() { bizCosts.push({name:'Business cost',amount:0}); renderBiz(); }
+
+function renderOtherOut() {
+  const c = document.getElementById('otherOutList');
+  c.innerHTML = otherOuts.map((o,i) => `
+    <div class="row">
+      <label><input value="${esc(o.name)}" style="border:none;background:none;padding:0;font-size:0.82rem;width:180px;" onchange="otherOuts[${i}].name=this.value"></label>
+      <div class="ig"><span class="pfx">$</span><input type="number" value="${o.amount}" oninput="otherOuts[${i}].amount=parseFloat(this.value)||0; recalc()"></div>
+      <button class="rm" onclick="otherOuts.splice(${i},1); renderOtherOut(); recalc()">×</button>
+    </div>`).join('');
+}
+function addOtherOut() { otherOuts.push({name:'Other',amount:0}); renderOtherOut(); }
+
+function renderAccts() {
+  const c = document.getElementById('acctList');
+  c.innerHTML = accounts.map((a,i) => `
+    <div class="acct-row">
+      <input class="name-input" value="${esc(a.name)}" onchange="accounts[${i}].name=this.value">
+      <div class="ig"><span class="pfx">$</span><input type="number" value="${a.balance}" oninput="accounts[${i}].balance=parseFloat(this.value)||0; recalc()"></div>
+      <button class="rm" onclick="accounts.splice(${i},1); renderAccts(); recalc()">×</button>
+    </div>`).join('');
+}
+function addAcct() { accounts.push({name:'New account',balance:0}); renderAccts(); }
+
+function renderDebts() {
+  const c = document.getElementById('debtList');
+  const now = new Date();
+  const nowMonth = now.getFullYear()*12 + now.getMonth();
+  c.innerHTML = debts.map((d,i) => {
+    return `<div class="debt-row" style="${d.paid?'opacity:0.5':''}">
+      <input class="name-input" value="${esc(d.name)}" onchange="debts[${i}].name=this.value">
+      <div class="ig"><span class="pfx">$</span><input type="number" value="${d.amount}" oninput="debts[${i}].amount=parseFloat(this.value)||0; recalc()"></div>
+      <input type="month" value="${d.due||''}" onchange="debts[${i}].due=this.value; renderDebts(); recalc()" style="text-align:left;">
+      <label style="text-align:center;cursor:pointer;"><input type="checkbox" ${d.paid?'checked':''} onchange="debts[${i}].paid=this.checked; renderDebts(); recalc()"></label>
+      <button class="rm" onclick="debts.splice(${i},1); renderDebts(); recalc()">×</button>
+    </div>`;
+  }).join('');
+
+  const timeline = document.getElementById('debtTimeline');
+  const upcoming = debts.filter(d => !d.paid && d.amount > 0 && d.due).sort((a,b) => a.due.localeCompare(b.due));
+  if (upcoming.length > 0) {
+    timeline.innerHTML = '<div style="font-size:0.75rem; color:var(--muted); margin-bottom:0.3rem;">Timeline:</div>' +
+      upcoming.map(d => {
+        const [y,m] = d.due.split('-').map(Number);
+        const diff = (y*12+(m-1)) - nowMonth;
+        const urgency = diff < 0 ? 'var(--red)' : diff <= 3 ? 'var(--orange)' : 'var(--muted)';
+        return `<div style="font-size:0.78rem; padding:0.15rem 0; display:flex; justify-content:space-between;">
+          <span style="color:${urgency}">${d.name}</span>
+          <span style="color:${urgency}; font-weight:500;">${fmt(d.amount)} — ${monthName(m)} ${y} ${diff<0?'(overdue)':diff===0?'(this month)':'(in '+diff+'mo)'}</span>
+        </div>`;
+      }).join('');
+  } else { timeline.innerHTML = ''; }
+}
+function addDebt() { debts.push({name:'New debt',amount:0,due:'',paid:false}); renderDebts(); }
+
+function renderPayIn() {
+  const c = document.getElementById('payInList');
+  const now = new Date();
+  const nowMonth = now.getFullYear()*12 + now.getMonth();
+  c.innerHTML = paymentsIn.map((p,i) => {
+    return `<div class="debt-row" style="${p.received?'opacity:0.5':''}">
+      <input class="name-input" value="${esc(p.name)}" onchange="paymentsIn[${i}].name=this.value">
+      <div class="ig"><span class="pfx">$</span><input type="number" value="${p.amount}" oninput="paymentsIn[${i}].amount=parseFloat(this.value)||0; recalc()"></div>
+      <input type="month" value="${p.due||''}" onchange="paymentsIn[${i}].due=this.value; renderPayIn(); recalc()" style="text-align:left;">
+      <label style="text-align:center;cursor:pointer;"><input type="checkbox" ${p.received?'checked':''} onchange="paymentsIn[${i}].received=this.checked; renderPayIn(); recalc()"></label>
+      <button class="rm" onclick="paymentsIn.splice(${i},1); renderPayIn(); recalc()">×</button>
+    </div>`;
+  }).join('');
+
+  const timeline = document.getElementById('payInTimeline');
+  const upcoming = paymentsIn.filter(p => !p.received && p.amount > 0 && p.due).sort((a,b) => a.due.localeCompare(b.due));
+  if (upcoming.length > 0) {
+    timeline.innerHTML = '<div style="font-size:0.75rem; color:var(--muted); margin-bottom:0.3rem;">Expected:</div>' +
+      upcoming.map(p => {
+        const [y,m] = p.due.split('-').map(Number);
+        const diff = (y*12+(m-1)) - nowMonth;
+        return `<div style="font-size:0.78rem; padding:0.15rem 0; display:flex; justify-content:space-between;">
+          <span style="color:var(--green)">${p.name}</span>
+          <span style="color:var(--green); font-weight:500;">+${fmt(p.amount)} — ${monthName(m)} ${y} ${diff<=0?'(now/overdue)':'(in '+diff+'mo)'}</span>
+        </div>`;
+      }).join('');
+  } else { timeline.innerHTML = ''; }
+}
+function addPayIn() { paymentsIn.push({name:'Payment expected',amount:0,due:'',received:false}); renderPayIn(); }
+
+// ---- Main recalc ----
+function recalc() {
+  const v = id => parseFloat(document.getElementById(id).value) || 0;
+
+  const totalIn = v('incK') + v('incKa') + v('incRent') + v('incOther');
+  document.getElementById('totIn').textContent = fmt(totalIn);
+
+  const cc = v('outCC'), mortH = v('outMortHome'), mortI = v('outMortInv');
+  const bizTotal = bizCosts.reduce((s,b) => s + (b.amount||0), 0);
+  const otherTotal = otherOuts.reduce((s,o) => s + (o.amount||0), 0);
+  const totalOut = cc + mortH + mortI + bizTotal + otherTotal;
+  document.getElementById('totOut').textContent = fmt(totalOut);
+
+  const gap = totalIn - totalOut;
+
+  const totalSavings = accounts.reduce((s,a) => s + (a.balance||0), 0);
+  document.getElementById('totSavings').textContent = fmt(totalSavings);
+
+  // Burn indicator
+  const burnBox = document.getElementById('burnBox');
+  let runwayText = '—', runwayDetail = '';
+  if (gap < 0 && totalSavings > 0) {
+    const months = totalSavings / Math.abs(gap);
+    runwayText = months.toFixed(1) + ' mo';
+    runwayDetail = 'until savings depleted';
+    burnBox.className = 'burn-indicator burn-neg';
+    burnBox.innerHTML = `Drawing <strong>${fmt(Math.abs(gap))}/mo</strong> from savings. At this rate, savings last <strong>${months.toFixed(1)} months</strong> (${(months/12).toFixed(1)} years).`;
+  } else if (gap < 0) {
+    runwayText = '0'; runwayDetail = 'no savings buffer';
+    burnBox.className = 'burn-indicator burn-neg';
+    burnBox.innerHTML = `Spending <strong>${fmt(Math.abs(gap))}/mo</strong> more than income with no savings buffer.`;
+  } else if (gap > 0) {
+    runwayText = '+' + fmt(gap); runwayDetail = 'saving each month';
+    burnBox.className = 'burn-indicator burn-pos';
+    burnBox.innerHTML = `Adding <strong>${fmt(gap)}/mo</strong> to savings. That's <strong>${fmt(gap*12)}/yr</strong>.`;
+  } else { burnBox.className = 'burn-indicator'; burnBox.innerHTML = 'Breaking even.'; }
+
+  // Debts
+  const now = new Date();
+  const nowMonth = now.getFullYear()*12 + now.getMonth();
+  const totalDebts = debts.filter(d => !d.paid).reduce((s,d) => s + (d.amount||0), 0);
+  const debtsSoon = debts.filter(d => {
+    if (d.paid || !d.due || !d.amount) return false;
+    const [y,m] = d.due.split('-').map(Number);
+    return (y*12+(m-1)) - nowMonth <= 3;
+  }).reduce((s,d) => s + (d.amount||0), 0);
+  document.getElementById('totDebts').textContent = fmt(totalDebts);
+  document.getElementById('debtsSoon').textContent = fmt(debtsSoon);
+
+  // Payments In
+  const totalPayIn = paymentsIn.filter(p => !p.received).reduce((s,p) => s + (p.amount||0), 0);
+  const payInSoon = paymentsIn.filter(p => {
+    if (p.received || !p.due || !p.amount) return false;
+    const [y,m] = p.due.split('-').map(Number);
+    return (y*12+(m-1)) - nowMonth <= 3;
+  }).reduce((s,p) => s + (p.amount||0), 0);
+  document.getElementById('totPayIn').textContent = fmt(totalPayIn);
+  document.getElementById('payInSoon').textContent = fmt(payInSoon);
+
+  // Summary strip
+  document.getElementById('sIn').textContent = fmt(totalIn);
+  document.getElementById('sInD').textContent = fmt(totalIn*12) + ' / year';
+  document.getElementById('sOut').textContent = fmt(totalOut);
+  document.getElementById('sOutD').textContent = fmt(totalOut*12) + ' / year';
+  document.getElementById('sGap').textContent = fmt(gap);
+  document.getElementById('sGap').className = 'val ' + (gap >= 0 ? 'pos' : 'neg');
+  document.getElementById('sGapD').textContent = gap >= 0 ? 'monthly surplus' : 'monthly shortfall';
+  document.getElementById('sRunway').textContent = runwayText;
+  document.getElementById('sRunway').className = 'val ' + (gap < 0 ? 'warn' : 'pos');
+  document.getElementById('sRunwayD').textContent = runwayDetail;
+  document.getElementById('sDebts').textContent = fmt(totalDebts);
+  document.getElementById('sDebts').className = 'val ' + (totalDebts > 0 ? 'neg' : 'pos');
+  document.getElementById('sDebtsD').textContent = totalDebts > 0 ? debtsSoon > 0 ? fmt(debtsSoon) + ' due within 3mo' : 'outstanding' : 'all clear';
+
+  updateCharts(totalIn, cc, mortH, mortI, bizTotal, otherTotal, gap, totalSavings);
+  updateTargetTable(totalIn, totalOut, gap, nowMonth);
+}
+
+// ---- Monthly target table ----
+function updateTargetTable(totalIn, totalOut, gap, nowMonth) {
+  const tbody = document.getElementById('targetBody');
+  let rows = '';
+
+  for (let i = 0; i < 12; i++) {
+    const thisMonth = nowMonth + i;
+    const monthLabel = MONTH_NAMES[thisMonth % 12] + ' ' + Math.floor(thisMonth / 12);
+
+    // Debts due this month
+    let debtsDue = 0;
+    debts.filter(d => !d.paid && d.due && d.amount > 0).forEach(d => {
+      const [y,m] = d.due.split('-').map(Number);
+      if (y*12+(m-1) === thisMonth) debtsDue += d.amount;
+    });
+
+    // Payments arriving this month
+    let payIn = 0;
+    paymentsIn.filter(p => !p.received && p.due && p.amount > 0).forEach(p => {
+      const [y,m] = p.due.split('-').map(Number);
+      if (y*12+(m-1) === thisMonth) payIn += p.amount;
+    });
+
+    const totalNeeded = totalOut + debtsDue - payIn;
+    const extraNeeded = totalNeeded - totalIn;
+    const isCurrent = i === 0;
+
+    const extraClass = extraNeeded > 0 ? 'need-more' : 'covered';
+    const extraText = extraNeeded > 0 ? '+' + fmt(extraNeeded) : extraNeeded === 0 ? 'Covered' : 'Surplus ' + fmt(Math.abs(extraNeeded));
+
+    rows += `<tr class="${isCurrent ? 'current' : ''}">
+      <td>${monthLabel}${isCurrent ? ' (now)' : ''}</td>
+      <td>${fmt(totalOut)}</td>
+      <td>${debtsDue > 0 ? fmt(debtsDue) : '—'}</td>
+      <td>${payIn > 0 ? fmt(payIn) : '—'}</td>
+      <td>${fmt(totalNeeded)}</td>
+      <td>${fmt(totalIn)}</td>
+      <td class="${extraClass}">${extraText}</td>
+    </tr>`;
+  }
+
+  tbody.innerHTML = rows;
+}
+
+// ---- Charts ----
+function updateCharts(totalIn, cc, mortH, mortI, biz, other, gap, savings) {
+  const totalOut = cc + mortH + mortI + biz + other;
+
+  if (charts.flow) charts.flow.destroy();
+  charts.flow = new Chart(document.getElementById('chFlow'), {
+    type: 'bar',
+    data: {
+      labels: ['Income', 'Outgoings', gap >= 0 ? 'Surplus' : 'Shortfall'],
+      datasets: [{ data: [totalIn, totalOut, Math.abs(gap)],
+        backgroundColor: ['#16a34a', '#dc2626', gap >= 0 ? '#2563eb' : '#ea580c'], borderRadius: 6 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => '$'+v.toLocaleString() } } } }
+  });
+
+  const labels = []; const vals = [];
+  if (cc > 0) { labels.push('Credit Card'); vals.push(cc); }
+  if (mortH > 0) { labels.push('Mortgage (Home)'); vals.push(mortH); }
+  if (mortI > 0) { labels.push('Mortgage (Inv)'); vals.push(mortI); }
+  if (biz > 0) { labels.push('Business Costs'); vals.push(biz); }
+  if (other > 0) { labels.push('Other'); vals.push(other); }
+
+  if (charts.brk) charts.brk.destroy();
+  charts.brk = new Chart(document.getElementById('chBreak'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: vals,
+      backgroundColor: ['#7c3aed','#2563eb','#0891b2','#ea580c','#6b7280'], borderWidth: 1 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } } } }
+  });
+
+  // Savings projection — includes one-off payments in & debt payments out
+  const projNow = new Date();
+  const projNowMonth = projNow.getFullYear()*12 + projNow.getMonth();
+  const months = []; const balances = [];
+  let bal = savings;
+  for (let i = 0; i <= 12; i++) {
+    const thisMonth = projNowMonth + i;
+    paymentsIn.filter(p => !p.received && p.due && p.amount > 0).forEach(p => {
+      const [y,m] = p.due.split('-').map(Number);
+      if (y*12+(m-1) === thisMonth) bal += p.amount;
+    });
+    debts.filter(d => !d.paid && d.due && d.amount > 0).forEach(d => {
+      const [y,m] = d.due.split('-').map(Number);
+      if (y*12+(m-1) === thisMonth) bal -= d.amount;
+    });
+    months.push(i === 0 ? 'Now' : MONTH_NAMES[thisMonth%12]);
+    balances.push(Math.round(bal));
+    if (i < 12) bal += gap;
+  }
+
+  if (charts.proj) charts.proj.destroy();
+  charts.proj = new Chart(document.getElementById('chProject'), {
+    type: 'line',
+    data: { labels: months, datasets: [{
+      label: 'Savings Balance', data: balances,
+      borderColor: gap >= 0 ? '#16a34a' : '#dc2626',
+      backgroundColor: gap >= 0 ? 'rgba(22,163,74,0.1)' : 'rgba(220,38,38,0.1)',
+      fill: true, tension: 0.2, pointRadius: 3,
+    }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { ticks: { callback: v => '$'+(v/1000).toFixed(0)+'k' } } } }
+  });
+}
+
+// ---- Save / Load ----
+function gatherAll() {
+  const ids = ['incK','incKa','incRent','incOther','outCC','outMortHome','outMortInv'];
+  const d = {};
+  ids.forEach(id => d[id] = parseFloat(document.getElementById(id).value)||0);
+  d.bizCosts = bizCosts; d.otherOuts = otherOuts;
+  d.accounts = accounts; d.debts = debts; d.paymentsIn = paymentsIn;
+  d.notes = document.getElementById('notes').value;
+  return d;
+}
+function exportData() {
+  const blob = new Blob([JSON.stringify(gatherAll(),null,2)], {type:'application/json'});
+  const u = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=u; a.download='household-finances.json'; a.click();
+  URL.revokeObjectURL(u);
+}
+function importData(ev) {
+  const f = ev.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = e => { try { loadAll(JSON.parse(e.target.result)); } catch(er) { alert('Error: '+er.message); } };
+  r.readAsText(f); ev.target.value='';
+}
+function loadAll(d) {
+  const ids = ['incK','incKa','incRent','incOther','outCC','outMortHome','outMortInv'];
+  ids.forEach(id => { if(d[id]!==undefined) document.getElementById(id).value=d[id]; });
+  // Backward compat: old saves may have tax fields — just ignore them
+  if(d.bizCosts) bizCosts=d.bizCosts;
+  if(d.otherOuts) otherOuts=d.otherOuts;
+  if(d.accounts) accounts=d.accounts;
+  if(d.debts) debts=d.debts;
+  if(d.paymentsIn) paymentsIn=d.paymentsIn;
+  if(d.notes) document.getElementById('notes').value=d.notes;
+  renderAll(); recalc();
+}
+function resetAll() {
+  if(!confirm('Reset everything to zero?')) return;
+  bizCosts=[{name:'Business expense',amount:0}]; otherOuts=[];
+  accounts=[{name:'Savings',balance:0},{name:'Business savings',balance:0},{name:'Offset (Home)',balance:0}];
+  debts=[{name:'Tax bill (2024-25)',amount:0,due:'2026-04',paid:false},{name:'Tax bill (2025-26)',amount:0,due:'2027-04',paid:false}];
+  paymentsIn=[];
+  document.querySelectorAll('input[type="number"]').forEach(i=>i.value=0);
+  document.getElementById('notes').value='';
+  renderAll(); recalc();
+}
+function renderAll() { renderBiz(); renderOtherOut(); renderAccts(); renderDebts(); renderPayIn(); }
+
+// ---- Init ----
+renderAll(); recalc();
+</script>
+</body>
+</html>
