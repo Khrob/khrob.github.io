@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Household Finances — Khrob & Katy</title>
+<title>Brundowner Financial Solutions</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
@@ -104,7 +104,7 @@
 <body>
 
 <header>
-  <div><h1>Household Finances</h1><div class="sub">Khrob, Katy & Pilot — 2025–26</div></div>
+  <div><h1>Brundowner Financial Solutions</h1><div class="sub">Pty Ltd LLC STD PTSD</div></div>
   <div class="hdr-btns">
     <button onclick="exportData()">Save</button>
     <button onclick="document.getElementById('imp').click()">Load</button>
@@ -143,6 +143,26 @@
             <thead><tr><th>Month</th><th>Expenses</th><th>Debts Due</th><th>Payments In</th><th>Total Needed</th><th>Current Income</th><th>Extra to Earn</th></tr></thead>
             <tbody id="targetBody"></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly History -->
+  <div class="grid">
+    <div class="card full">
+      <h2 style="display:flex; justify-content:space-between; align-items:center;">
+        Monthly History
+        <button class="record-btn" onclick="recordSnapshot()">⏺ Record This Month</button>
+      </h2>
+      <p style="font-size:0.75rem; color:var(--muted); margin-bottom:0.5rem;">Snapshot your current values each month to track trends over time.</p>
+      <div id="historyTableWrap"></div>
+      <div id="historyChartsWrap" style="display:none; margin-top:1.25rem;">
+        <div style="font-size:0.8rem; color:var(--muted); margin-bottom:0.3rem;">Trends</div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:1.25rem;">
+          <div><div style="font-size:0.75rem; color:var(--muted); margin-bottom:0.2rem;">Income vs Outgoings</div><div class="chart-box"><canvas id="chHistFlow"></canvas></div></div>
+          <div><div style="font-size:0.75rem; color:var(--muted); margin-bottom:0.2rem;">Monthly Gap</div><div class="chart-box"><canvas id="chHistGap"></canvas></div></div>
+          <div><div style="font-size:0.75rem; color:var(--muted); margin-bottom:0.2rem;">Total Savings</div><div class="chart-box"><canvas id="chHistSavings"></canvas></div></div>
         </div>
       </div>
     </div>
@@ -527,6 +547,158 @@ function updateCharts(totalIn, cc, mortH, mortI, biz, other, gap, savings) {
   });
 }
 
+// ---- History ----
+let history = [];
+
+function recordSnapshot() {
+  const now = new Date();
+  const monthKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  const v = id => parseFloat(document.getElementById(id).value) || 0;
+
+  const totalIn = v('incK') + v('incKa') + v('incRent') + v('incOther');
+  const cc = v('outCC'), mortH = v('outMortHome'), mortI = v('outMortInv');
+  const bizTotal = bizCosts.reduce((s,b) => s + (b.amount||0), 0);
+  const otherTotal = otherOuts.reduce((s,o) => s + (o.amount||0), 0);
+  const totalOut = cc + mortH + mortI + bizTotal + otherTotal;
+  const totalSavings = accounts.reduce((s,a) => s + (a.balance||0), 0);
+  const totalDebts = debts.filter(d => !d.paid).reduce((s,d) => s + (d.amount||0), 0);
+
+  const snap = {
+    month: monthKey,
+    incK: v('incK'), incKa: v('incKa'), incRent: v('incRent'), incOther: v('incOther'),
+    totalIn,
+    outCC: cc, outMortHome: mortH, outMortInv: mortI,
+    bizTotal, otherTotal, totalOut,
+    gap: totalIn - totalOut,
+    totalSavings, totalDebts
+  };
+
+  // Check if this month already recorded
+  const existing = history.findIndex(h => h.month === monthKey);
+  if (existing >= 0) {
+    if (!confirm('You already have a snapshot for ' + monthKey + '. Overwrite it?')) return;
+    history[existing] = snap;
+  } else {
+    history.push(snap);
+    history.sort((a,b) => a.month.localeCompare(b.month));
+  }
+  renderHistory();
+}
+
+function deleteSnapshot(idx) {
+  if (!confirm('Delete this snapshot?')) return;
+  history.splice(idx, 1);
+  renderHistory();
+}
+
+function trendIndicator(curr, prev, higherIsGood) {
+  if (prev === undefined || prev === null) return '';
+  const diff = curr - prev;
+  if (Math.abs(diff) < 1) return '';
+  const pct = prev !== 0 ? ((diff / Math.abs(prev)) * 100).toFixed(0) : '';
+  const arrow = diff > 0 ? '↑' : '↓';
+  let cls;
+  if (higherIsGood) cls = diff > 0 ? 'trend-up-good' : 'trend-down-bad';
+  else cls = diff > 0 ? 'trend-up' : 'trend-down';
+  return `<span class="trend-change ${cls}">${arrow}${pct ? pct+'%' : ''}</span>`;
+}
+
+function renderHistory() {
+  const wrap = document.getElementById('historyTableWrap');
+  const chartsWrap = document.getElementById('historyChartsWrap');
+
+  if (history.length === 0) {
+    wrap.innerHTML = '<div style="font-size:0.8rem; color:var(--muted); padding:0.5rem 0;">No snapshots recorded yet. Click "Record This Month" to capture your current values.</div>';
+    chartsWrap.style.display = 'none';
+    return;
+  }
+
+  let html = '<table class="hist-table"><thead><tr>';
+  html += '<th>Month</th><th>Income</th><th>Outgoings</th><th>Gap</th><th>Credit Card</th><th>Savings</th><th>Debts</th><th></th>';
+  html += '</tr></thead><tbody>';
+
+  history.forEach((h, i) => {
+    const prev = i > 0 ? history[i-1] : null;
+    const [y,m] = h.month.split('-').map(Number);
+    const label = MONTH_NAMES[m-1] + ' ' + y;
+
+    html += '<tr>';
+    html += `<td style="text-align:left; font-weight:500;">${label}</td>`;
+    html += `<td>${fmt(h.totalIn)}${prev ? trendIndicator(h.totalIn, prev.totalIn, true) : ''}</td>`;
+    html += `<td>${fmt(h.totalOut)}${prev ? trendIndicator(h.totalOut, prev.totalOut, false) : ''}</td>`;
+    html += `<td style="color:${h.gap>=0?'var(--green)':'var(--red)'}; font-weight:600;">${fmt(h.gap)}</td>`;
+    html += `<td>${fmt(h.outCC)}${prev ? trendIndicator(h.outCC, prev.outCC, false) : ''}</td>`;
+    html += `<td>${fmt(h.totalSavings)}${prev ? trendIndicator(h.totalSavings, prev.totalSavings, true) : ''}</td>`;
+    html += `<td>${fmt(h.totalDebts)}${prev ? trendIndicator(h.totalDebts, prev.totalDebts, false) : ''}</td>`;
+    html += `<td><button class="rm" onclick="deleteSnapshot(${i})">×</button></td>`;
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+
+  // Show trend charts if we have 2+ snapshots
+  if (history.length >= 2) {
+    chartsWrap.style.display = 'block';
+    renderHistoryCharts();
+  } else {
+    chartsWrap.style.display = 'none';
+  }
+}
+
+function renderHistoryCharts() {
+  const labels = history.map(h => {
+    const [y,m] = h.month.split('-').map(Number);
+    return MONTH_NAMES[m-1] + ' ' + String(y).slice(2);
+  });
+
+  // Income vs Outgoings
+  if (charts.histFlow) charts.histFlow.destroy();
+  charts.histFlow = new Chart(document.getElementById('chHistFlow'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Income', data: history.map(h => h.totalIn), borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.1)', fill: true, tension: 0.3, pointRadius: 4 },
+        { label: 'Outgoings', data: history.map(h => h.totalOut), borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.1)', fill: true, tension: 0.3, pointRadius: 4 }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { boxWidth: 10, font: { size: 11 } } } },
+      scales: { y: { ticks: { callback: v => '$'+(v/1000).toFixed(0)+'k' } } } }
+  });
+
+  // Monthly Gap
+  if (charts.histGap) charts.histGap.destroy();
+  charts.histGap = new Chart(document.getElementById('chHistGap'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Monthly Gap', data: history.map(h => h.gap),
+        backgroundColor: history.map(h => h.gap >= 0 ? 'rgba(22,163,74,0.7)' : 'rgba(220,38,38,0.7)'),
+        borderRadius: 4
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { y: { ticks: { callback: v => '$'+v.toLocaleString() } } } }
+  });
+
+  // Total Savings
+  if (charts.histSav) charts.histSav.destroy();
+  charts.histSav = new Chart(document.getElementById('chHistSavings'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Total Savings', data: history.map(h => h.totalSavings),
+        borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.1)', fill: true, tension: 0.3, pointRadius: 4
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { y: { ticks: { callback: v => '$'+(v/1000).toFixed(0)+'k' } } } }
+  });
+}
+
 // ---- Save / Load ----
 function gatherAll() {
   const ids = ['incK','incKa','incRent','incOther','outCC','outMortHome','outMortInv'];
@@ -535,6 +707,7 @@ function gatherAll() {
   d.bizCosts = bizCosts; d.otherOuts = otherOuts;
   d.accounts = accounts; d.debts = debts; d.paymentsIn = paymentsIn;
   d.notes = document.getElementById('notes').value;
+  d.history = history;
   return d;
 }
 function exportData() {
@@ -559,6 +732,7 @@ function loadAll(d) {
   if(d.debts) debts=d.debts;
   if(d.paymentsIn) paymentsIn=d.paymentsIn;
   if(d.notes) document.getElementById('notes').value=d.notes;
+  if(d.history) history=d.history;
   renderAll(); recalc();
 }
 function resetAll() {
@@ -566,12 +740,12 @@ function resetAll() {
   bizCosts=[{name:'Business expense',amount:0}]; otherOuts=[];
   accounts=[{name:'Savings',balance:0},{name:'Business savings',balance:0},{name:'Offset (Home)',balance:0}];
   debts=[{name:'Tax bill (2024-25)',amount:0,due:'2026-04',paid:false},{name:'Tax bill (2025-26)',amount:0,due:'2027-04',paid:false}];
-  paymentsIn=[];
+  paymentsIn=[]; history=[];
   document.querySelectorAll('input[type="number"]').forEach(i=>i.value=0);
   document.getElementById('notes').value='';
   renderAll(); recalc();
 }
-function renderAll() { renderBiz(); renderOtherOut(); renderAccts(); renderDebts(); renderPayIn(); }
+function renderAll() { renderBiz(); renderOtherOut(); renderAccts(); renderDebts(); renderPayIn(); renderHistory(); }
 
 // ---- Init ----
 renderAll(); recalc();
