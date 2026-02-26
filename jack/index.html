@@ -1118,6 +1118,7 @@ let boneTail = null;
 let boneHead = null;
 let bonePecLeft = null;
 let bonePecRight = null;
+let pecEatWiggle = 0; // countdown timer for krill-eat fin flap
 
 // Procedural sine-wave animation
 function animateJack(time, dt) {
@@ -1139,15 +1140,19 @@ function animateJack(time, dt) {
       // Head counter-sways slightly for realism
       boneHead.rotation.z = Math.sin(t - 0.3) * -0.06;
     }
-    // Pectoral fins — rotated down to roughly horizontal, gentle small movement
-    // Pectoral fins — both rotate down toward horizontal on the same axis
+    // Pectoral fins — gentle idle + quick eat wiggle
+    // Decay eat wiggle timer
+    if (pecEatWiggle > 0) pecEatWiggle = Math.max(0, pecEatWiggle - dt);
+    // Eat wiggle: fast flutter that decays, amplitude fades out over the wiggle duration
+    const wigAmp = pecEatWiggle > 0 ? Math.sin(t * 17.5) * 0.325 * (pecEatWiggle / 0.4) : 0;
+
     if (bonePecLeft) {
       if (!bonePecLeft.userData.baseSet) {
-        bonePecLeft.rotation.x = -1.4; // same direction as right — mirrored in armature
+        bonePecLeft.rotation.x = -1.4;
         bonePecLeft.userData.baseSet = true;
         bonePecLeft.userData.baseRotX = bonePecLeft.rotation.x;
       }
-      bonePecLeft.rotation.x = bonePecLeft.userData.baseRotX + Math.sin(t * 0.6) * 0.04;
+      bonePecLeft.rotation.x = bonePecLeft.userData.baseRotX + Math.sin(t * 0.6) * 0.04 + wigAmp;
     }
     if (bonePecRight) {
       if (!bonePecRight.userData.baseSet) {
@@ -1155,7 +1160,7 @@ function animateJack(time, dt) {
         bonePecRight.userData.baseSet = true;
         bonePecRight.userData.baseRotX = bonePecRight.rotation.x;
       }
-      bonePecRight.rotation.x = bonePecRight.userData.baseRotX + Math.sin(t * 0.6) * -0.04;
+      bonePecRight.rotation.x = bonePecRight.userData.baseRotX + Math.sin(t * 0.6) * -0.04 - wigAmp;
     }
   } else {
     // Animate placeholder parts
@@ -1576,6 +1581,9 @@ function checkCollisions() {
       state.timeSinceEat = 0;
       state.score += CONFIG.scoring.krillBonus * state.level;
 
+      // Trigger pec fin eat wiggle
+      pecEatWiggle = 0.4; // 0.4 seconds of rapid flapping
+
       if (state.inBloom) {
         bloomKrillCollected++;
         if (bloomKrillCollected >= bloomKrillTarget) {
@@ -1646,13 +1654,20 @@ function checkLevelUp() {
     if (state.level === 3) {
       // Spot pattern fully develops
     }
-    if (state.level >= 10) {
-      // Night mode — shift fog and lighting
+    if (state.level === 10) {
+      // Night mode — ONE level only
       scene.fog.color.setHex(0x050f20);
       ambientLight.color.setHex(0x112244);
       ambientLight.intensity = 0.3;
       dirLight.color.setHex(0x6688aa);
       dirLight.intensity = 0.6;
+    } else if (state.level === 11) {
+      // Dawn — revert to normal daytime
+      scene.fog.color.setHex(0x0a3055);
+      ambientLight.color.setHex(0x336688);
+      ambientLight.intensity = 0.6;
+      dirLight.color.setHex(0x88ccff);
+      dirLight.intensity = 1.2;
     }
 
     // Update win state availability
