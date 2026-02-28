@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Global Goals for Climate — Report Card</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
@@ -429,6 +431,87 @@
   }
   .trend-tooltip.visible { opacity: 1; }
 
+  /* ── World Map ── */
+  .map-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 32px;
+    box-shadow: var(--shadow-sm);
+  }
+  .map-panel h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }
+  .map-panel > p { font-size: 0.9rem; color: var(--text-dim); margin-bottom: 16px; }
+  .map-tabs {
+    display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .map-tab {
+    padding: 6px 14px; border: 2px solid var(--border); background: var(--surface);
+    border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s; color: var(--text-dim);
+  }
+  .map-tab:hover { border-color: var(--text-dim); color: var(--text); }
+  .map-tab.active { color: #fff; }
+  .map-tab[data-metric="energy"].active { background: var(--goal-energy); border-color: var(--goal-energy); }
+  .map-tab[data-metric="plastic"].active { background: var(--goal-plastic); border-color: var(--goal-plastic); }
+  .map-tab[data-metric="ocean"].active { background: var(--goal-ocean); border-color: var(--goal-ocean); }
+  .map-tab[data-metric="land"].active { background: var(--goal-land); border-color: var(--goal-land); }
+  .map-wrap {
+    position: relative; width: 100%; overflow: hidden;
+    border-radius: 12px; background: #e8f4f0;
+  }
+  .map-wrap svg { display: block; width: 100%; height: auto; }
+  .map-tooltip {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    box-shadow: var(--shadow-md);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 10;
+    max-width: 220px;
+    line-height: 1.5;
+  }
+  .map-tooltip.visible { opacity: 1; }
+  .map-legend-bar {
+    display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 0.78rem; color: var(--text-dim);
+  }
+  .map-legend-gradient {
+    flex: 1; max-width: 240px; height: 10px; border-radius: 5px;
+  }
+
+  /* ── Australia State Map ── */
+  .au-map-wrap {
+    position: relative; width: 100%; max-width: 700px; margin: 0 auto 24px;
+    overflow: hidden;
+  }
+  .au-map-wrap svg { display: block; width: 100%; height: auto; }
+  .au-state-path {
+    stroke: #fff; stroke-width: 1.5; cursor: pointer;
+    transition: opacity 0.2s, filter 0.2s;
+  }
+  .au-state-path:hover { opacity: 0.85; filter: brightness(1.1); }
+  .au-map-tooltip {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    box-shadow: var(--shadow-md);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 10;
+    max-width: 240px;
+    line-height: 1.5;
+  }
+  .au-map-tooltip.visible { opacity: 1; }
+
   /* ── Sources ── */
   .sources {
     margin-top: 32px; padding: 20px;
@@ -596,6 +679,23 @@
 
   </div>
 
+  <!-- ── World Map ── -->
+  <div class="map-panel">
+    <h3>🗺️ Global Progress Map</h3>
+    <p>Select a goal to see how each country compares. Click Australia to jump to the deep dive.</p>
+    <div class="map-tabs">
+      <button class="map-tab active" data-metric="energy">⚡ Energy</button>
+      <button class="map-tab" data-metric="plastic">♻️ Plastic</button>
+      <button class="map-tab" data-metric="ocean">🌊 Ocean</button>
+      <button class="map-tab" data-metric="land">🌳 Land</button>
+    </div>
+    <div class="map-wrap" id="worldMapWrap">
+      <svg id="worldMapSvg" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="map-tooltip" id="worldMapTooltip"></div>
+    </div>
+    <div class="map-legend-bar" id="worldMapLegend"></div>
+  </div>
+
   <!-- ── 20-Year Trend Timeline ── -->
   <div class="trend-panel">
     <h3>📈 20-Year Progress Timeline</h3>
@@ -756,6 +856,16 @@
       <div class="big" style="color:var(--goal-land-mid)">22.6%</div>
       <div class="note">of land protected · 14,575 terrestrial PAs</div>
       <div class="note"><span class="grade grade-b">B</span> Target: 30%</div>
+    </div>
+  </div>
+
+  <!-- ── Australia State Map ── -->
+  <div class="detail-panel">
+    <h3>🗺️ State & Territory Overview</h3>
+    <p style="font-size:0.9rem;color:var(--text-dim);margin-bottom:16px;">Hover over each state to see performance across all four goals. Colour intensity shows renewable energy share.</p>
+    <div class="au-map-wrap" id="auMapWrap">
+      <svg id="auMapSvg" viewBox="0 0 800 700" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="au-map-tooltip" id="auMapTooltip"></div>
     </div>
   </div>
 
@@ -1134,6 +1244,297 @@ const animateRings = () => {
     ring.style.strokeDashoffset = C - (C * Math.min(pct, 100) / 100);
   });
 };
+// ── World Map (D3 + Natural Earth TopoJSON) ──
+
+// ISO3 to friendly name mapping for countries we track
+const isoToName = {
+  NOR:'Norway',BRA:'Brazil',DEU:'Germany',GBR:'UK',AUS:'Australia',
+  CHN:'China',JPN:'Japan',USA:'USA',IND:'India',ZAF:'South Africa',
+  KOR:'South Korea',FRA:'France',CRI:'Costa Rica',PLW:'Palau',
+  SWE:'Sweden',RUS:'Russia',CAN:'Canada',MEX:'Mexico',IDN:'Indonesia',
+  ARG:'Argentina',SAU:'Saudi Arabia',NGA:'Nigeria',EGY:'Egypt',
+  TUR:'Turkey',ITA:'Italy',ESP:'Spain',THA:'Thailand',NZL:'New Zealand',
+  COL:'Colombia',MYS:'Malaysia',PHL:'Philippines',PAK:'Pakistan',
+  BGD:'Bangladesh'
+};
+const nameToIso = {};
+Object.entries(isoToName).forEach(([k,v]) => nameToIso[v] = k);
+
+const worldMetricData = {
+  energy:  { Norway:99,Brazil:89,Germany:59,UK:45,Australia:43,China:35,Japan:31,USA:26,India:22,'South Africa':9,'South Korea':38,France:26,'Costa Rica':99,Palau:5,Global:34, target:100, color:'#f59e0b', label:'Renewable Energy %' },
+  plastic: { Germany:67,Japan:40,'South Korea':34,China:31,Norway:28,UK:17,Australia:13,India:13,USA:5,Brazil:2,'South Africa':8,France:24,'Costa Rica':5,Palau:2,Global:9, target:100, color:'#ef4444', label:'Plastic Recycling %' },
+  ocean:   { France:96,Palau:80,UK:56,Australia:47,USA:41,Germany:31,Brazil:27,Japan:13,Norway:10,'South Africa':5.4,China:4.5,India:0.3,'South Korea':5,'Costa Rica':28,Global:9.6, target:30, color:'#3b82f6', label:'Ocean Protected %' },
+  land:    { Germany:39.3,Brazil:30.6,Japan:29.8,UK:27.8,'Costa Rica':26.5,Australia:22.6,Norway:17.5,China:15.6,USA:13,'South Africa':9.5,India:7.7,'South Korea':6.3,France:22,Palau:30,Global:17.5, target:30, color:'#22c55e', label:'Land Protected %' },
+};
+
+// World map state
+let worldGeoData = null;
+let currentWorldMetric = 'energy';
+
+function drawWorldMap(metric) {
+  if (!worldGeoData) return;
+  currentWorldMetric = metric;
+  const svgEl = document.getElementById('worldMapSvg');
+  const tooltip = document.getElementById('worldMapTooltip');
+  const wrap = document.getElementById('worldMapWrap');
+  const legend = document.getElementById('worldMapLegend');
+  const md = worldMetricData[metric];
+
+  const W = 1000, H = 500;
+  const projection = d3.geoNaturalEarth1().fitSize([W - 40, H - 20], worldGeoData).translate([W/2, H/2 + 5]);
+  const pathGen = d3.geoPath(projection);
+  const graticule = d3.geoGraticule10();
+
+  const svg = d3.select(svgEl);
+  svg.selectAll('*').remove();
+  svg.attr('viewBox', `0 0 ${W} ${H}`);
+
+  // Ocean
+  svg.append('rect').attr('width',W).attr('height',H).attr('fill','#dbeafe').attr('rx',12);
+  // Graticule
+  svg.append('path').attr('d', pathGen(graticule)).attr('fill','none').attr('stroke','#c4dcf0').attr('stroke-width',0.3);
+
+  // Color scale
+  const maxTarget = md.target;
+  function valColor(v) {
+    if (v === undefined || v === null) return '#d4e8dc';
+    const t = Math.min(v / maxTarget, 1.5);
+    return d3.interpolateRgb('#e8f0eb', md.color)(Math.min(t, 1));
+  }
+
+  // Country paths
+  worldGeoData.features.forEach(f => {
+    const iso = f.properties.iso_a3 || f.id;
+    const cName = isoToName[iso];
+    const val = cName ? md[cName] : undefined;
+    const isAu = iso === 'AUS';
+    const tracked = cName !== undefined;
+
+    const path = svg.append('path')
+      .attr('d', pathGen(f))
+      .attr('fill', tracked ? valColor(val) : '#d4e8dc')
+      .attr('stroke', isAu ? md.color : '#b8d4c4')
+      .attr('stroke-width', isAu ? 2.5 : 0.5)
+      .attr('cursor', tracked ? 'pointer' : 'default')
+      .attr('data-iso', iso);
+
+    if (isAu) {
+      path.attr('stroke-dasharray', '6,3')
+        .attr('filter', 'drop-shadow(0 0 6px rgba(0,0,0,0.15))');
+    }
+
+    if (tracked) {
+      const centroid = pathGen.centroid(f);
+      path.on('mouseenter', function(e) {
+          d3.select(this).attr('opacity', 0.8).attr('stroke', '#333').attr('stroke-width', 1.5);
+          const pctOfTarget = ((val / md.target) * 100).toFixed(0);
+          tooltip.innerHTML = `<strong>${cName}</strong><br><span style="color:${md.color};font-weight:700;font-size:1.1rem">${val}%</span> <span style="color:#5a7d6a">(${pctOfTarget}% of target)</span>`;
+          tooltip.classList.add('visible');
+          const rect = wrap.getBoundingClientRect();
+          const svgRect = svgEl.getBoundingClientRect();
+          const sx = svgRect.width / W, sy = svgRect.height / H;
+          let tx = centroid[0] * sx + 16;
+          let ty = centroid[1] * sy - 30;
+          if (tx + 200 > rect.width) tx = centroid[0] * sx - 210;
+          if (ty < 0) ty = 10;
+          tooltip.style.left = tx + 'px';
+          tooltip.style.top = ty + 'px';
+        })
+        .on('mouseleave', function() {
+          d3.select(this).attr('opacity', 1).attr('stroke', iso==='AUS' ? md.color : '#b8d4c4').attr('stroke-width', iso==='AUS' ? 2.5 : 0.5);
+          tooltip.classList.remove('visible');
+        })
+        .on('click', function() {
+          if (iso === 'AUS') document.getElementById('australia').scrollIntoView({ behavior: 'smooth' });
+        });
+
+      // Value labels for tracked countries
+      if (val !== undefined && centroid[0] && centroid[1]) {
+        svg.append('text')
+          .attr('x', centroid[0]).attr('y', centroid[1] + 1)
+          .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
+          .attr('fill', val > maxTarget * 0.4 ? '#fff' : '#1a3a2a')
+          .attr('font-size', isAu ? 12 : 9).attr('font-weight', 700)
+          .attr('font-family', 'Inter,sans-serif')
+          .attr('pointer-events', 'none')
+          .text(val + '%');
+      }
+    }
+  });
+
+  // "Click Australia" hint
+  const auFeature = worldGeoData.features.find(f => (f.properties.iso_a3 || f.id) === 'AUS');
+  if (auFeature) {
+    const ac = pathGen.centroid(auFeature);
+    svg.append('text').attr('x', ac[0]).attr('y', ac[1] + 22)
+      .attr('text-anchor', 'middle').attr('fill', '#2563eb').attr('font-size', 9)
+      .attr('font-weight', 600).attr('font-family', 'Inter,sans-serif')
+      .attr('pointer-events', 'none').attr('opacity', 0.8)
+      .text('Click to explore ↓');
+  }
+
+  // Global average indicator
+  svg.append('text').attr('x', W/2).attr('y', H - 15)
+    .attr('text-anchor', 'middle').attr('fill', '#5a7d6a').attr('font-size', 11)
+    .attr('font-family', 'Inter,sans-serif').attr('font-weight', 600)
+    .text(`🌍 Global average: ${md.Global}%  |  Target: ${md.target}%`);
+
+  // Legend
+  legend.innerHTML = `
+    <span>0%</span>
+    <div class="map-legend-gradient" style="background:linear-gradient(90deg, #e8f0eb, ${md.color})"></div>
+    <span>${md.target}%+</span>
+    <span style="margin-left:12px;font-weight:600">${md.label}</span>
+  `;
+}
+
+// Load TopoJSON and render
+(async function loadWorldMap() {
+  try {
+    const res = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+    const topo = await res.json();
+    worldGeoData = topojson.feature(topo, topo.objects.countries);
+    // Map numeric IDs to ISO codes using built-in mapping
+    const idToIso = {};
+    // Common numeric ID → ISO3 mapping (Natural Earth / UN M49)
+    const numToIso = {36:'AUS',76:'BRA',124:'CAN',156:'CHN',170:'COL',188:'CRI',250:'FRA',276:'DEU',356:'IND',360:'IDN',392:'JPN',410:'KOR',458:'MYS',484:'MEX',528:'NLD',578:'NOR',585:'PLW',608:'PHL',643:'RUS',682:'SAU',710:'ZAF',724:'ESP',752:'SWE',764:'THA',792:'TUR',826:'GBR',840:'USA',554:'NZL',32:'ARG',818:'EGY',566:'NGA',586:'PAK',50:'BGD',380:'ITA',300:'GRC',616:'POL',642:'ROU'};
+    worldGeoData.features.forEach(f => {
+      const numId = typeof f.id === 'string' ? parseInt(f.id) : f.id;
+      if (numToIso[numId]) {
+        f.properties.iso_a3 = numToIso[numId];
+        f.id = numToIso[numId];
+      }
+    });
+    drawWorldMap(currentWorldMetric);
+  } catch(e) {
+    console.warn('Could not load world map TopoJSON:', e);
+    document.getElementById('worldMapSvg').innerHTML = '<text x="500" y="250" text-anchor="middle" fill="#5a7d6a" font-size="14" font-family="Inter">Loading map data... (requires internet)</text>';
+  }
+})();
+
+// Map tab switching
+document.querySelectorAll('.map-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.map-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    drawWorldMap(tab.dataset.metric);
+  });
+});
+
+// ── Australia State Map (D3 + GeoJSON) ──
+const auStatesData = {
+  WA: { name:'Western Australia', energy:26, plastic:12, ocean:25, land:31, detail:'Separate grid · Containers for Change since 2020 · 4.5B returned' },
+  NT: { name:'Northern Territory', energy:12, plastic:8, ocean:15, land:20, detail:'Gas-dependent · Joint-managed parks · CDS expanding 2026' },
+  SA: { name:'South Australia', energy:74.3, plastic:14, ocean:20, land:22, detail:'CDS pioneer (1977) · 72.5% return rate · Highest solar penetration' },
+  QLD: { name:'Queensland', energy:28, plastic:11, ocean:20, land:9.4, detail:'Great Barrier Reef · 616,711 ha added 2020-24 · Containers for Change' },
+  NSW: { name:'New South Wales', energy:34, plastic:14, ocean:15, land:10.4, detail:'Return and Earn · 13B containers · Great Koala NP (176,000 ha)' },
+  VIC: { name:'Victoria', energy:38, plastic:12, ocean:12, land:18, detail:'CDS VIC launched Nov 2023 · 1.8B collected · 32% of new RE capacity' },
+  TAS: { name:'Tasmania', energy:94.7, plastic:10, ocean:30, land:43, detail:'Hydro-dominant · Recycle Rewards launched May 2025 · 43% land protected' },
+  ACT: { name:'ACT', energy:100, plastic:15, ocean:0, land:56, detail:'100% renewable (offsets) · 56% land protected · CDS since 2018' },
+};
+
+const auGeoJSON = {"type":"FeatureCollection","features":[{"type":"Feature","id":"WA","properties":{"name":"WA","code":"WA"},"geometry":{"type":"Polygon","coordinates":[[[129,-14.5],[128.7,-14.8],[128.2,-15.3],[127.5,-14],[126.5,-13.8],[125.8,-14.2],[125,-13.5],[124.2,-14.3],[123.5,-15.5],[122.3,-16.2],[121.8,-17],[121,-18.2],[119.8,-19.8],[118.5,-20.2],[117.3,-20.5],[116,-21.2],[115.2,-21.8],[114.8,-22.5],[114.2,-23.5],[113.8,-24.2],[113.5,-25],[113.7,-26],[114,-26.8],[114.1,-28],[114.6,-29],[115,-30.5],[115.3,-31.5],[115.6,-32],[115.8,-33],[115.7,-33.8],[116.2,-34.2],[117,-34.8],[118,-34.8],[119,-34.5],[120,-34],[121.5,-33.8],[123,-33.9],[124.5,-33],[126,-32.5],[127.5,-32],[129,-31.6],[129,-26],[129,-20],[129,-14.5]]]}},{"type":"Feature","id":"NT","properties":{"name":"NT","code":"NT"},"geometry":{"type":"Polygon","coordinates":[[[129,-14.5],[129,-20],[129,-26],[138,-26],[138,-20],[138,-16],[137,-13.8],[136.5,-13.2],[136,-12.5],[135.8,-12],[135.2,-12],[134.5,-11.8],[134,-12.2],[133.2,-11.5],[132.5,-11.2],[131.5,-11.5],[130.8,-12.2],[130,-12.8],[129,-14.5]]]}},{"type":"Feature","id":"SA","properties":{"name":"SA","code":"SA"},"geometry":{"type":"Polygon","coordinates":[[[129,-26],[129,-31.6],[130,-32.5],[131,-32],[132,-31.8],[133,-32.2],[134,-33],[134.8,-34],[135.2,-34.5],[135.8,-35.2],[136.2,-35.8],[136.8,-35.5],[137.2,-34.8],[137.6,-34.6],[138,-35.2],[138.3,-35.5],[138.6,-35.2],[139,-36.2],[139.5,-37],[140,-37.8],[141,-38],[141,-37],[141,-34],[141,-29],[141,-26],[138,-26],[129,-26]]]}},{"type":"Feature","id":"QLD","properties":{"name":"QLD","code":"QLD"},"geometry":{"type":"Polygon","coordinates":[[[138,-26],[141,-26],[141,-29],[148.8,-29],[149.5,-29],[150,-28.5],[150.8,-28],[151.5,-27.5],[152.2,-27],[152.8,-26.2],[153.2,-25.8],[153.4,-25],[153.1,-24],[152.5,-23.5],[151.5,-23],[150.5,-22.5],[150,-22],[149.5,-21],[149,-20.2],[148.2,-19.8],[147.5,-19.2],[146.8,-18.5],[146.2,-17.8],[145.8,-17],[145.5,-16.5],[145.7,-15.8],[145.3,-15],[144.5,-14.5],[143.5,-13.5],[142.5,-12],[141.5,-11],[140,-12.5],[139,-14],[138,-16],[138,-20],[138,-26]]]}},{"type":"Feature","id":"NSW","properties":{"name":"NSW","code":"NSW"},"geometry":{"type":"Polygon","coordinates":[[[141,-29],[141,-34],[141,-37],[142,-37.2],[143.5,-37.5],[145,-37.5],[146.5,-37.5],[148,-37.5],[149,-37.5],[150,-37.8],[150.2,-37.5],[150.5,-37],[150.8,-36.5],[151,-35.5],[151.5,-34.5],[151.8,-34],[152.2,-33.2],[152.5,-32.5],[153,-31.8],[153.5,-31],[153.6,-30],[153.4,-29.5],[153.2,-29],[152.5,-28.5],[151.5,-28.7],[150.8,-28.5],[150,-28.8],[149.5,-29],[148.8,-29],[141,-29]]]}},{"type":"Feature","id":"VIC","properties":{"name":"VIC","code":"VIC"},"geometry":{"type":"Polygon","coordinates":[[[141,-37],[141,-38.2],[140.5,-38.5],[141,-39],[142,-38.8],[143,-38.6],[144,-38.3],[144.5,-38.5],[145,-38.7],[145.5,-38.5],[146,-38.8],[146.5,-38.5],[147,-38.3],[147.5,-38.5],[148,-38.8],[148.5,-38.5],[149,-38.8],[149.5,-38.5],[150,-38.5],[150,-37.8],[149,-37.5],[148,-37.5],[146.5,-37.5],[145,-37.5],[143.5,-37.5],[142,-37.2],[141,-37]]]}},{"type":"Feature","id":"TAS","properties":{"name":"TAS","code":"TAS"},"geometry":{"type":"Polygon","coordinates":[[[145.5,-40.8],[146,-40.5],[146.5,-41],[147,-41],[147.8,-41],[148.2,-41.2],[148.3,-41.8],[148.5,-42],[148.3,-42.5],[148,-43],[147.5,-43.2],[147,-43.3],[146.5,-43.5],[146,-43.2],[145.5,-42.8],[145,-42.5],[144.8,-42],[144.5,-41.5],[144.8,-41],[145.5,-40.8]]]}},{"type":"Feature","id":"ACT","properties":{"name":"ACT","code":"ACT"},"geometry":{"type":"Polygon","coordinates":[[[148.76,-35.12],[149.4,-35.16],[149.4,-35.9],[148.76,-35.92],[148.76,-35.12]]]}}]};
+
+function drawAuMap() {
+  const svgEl = document.getElementById('auMapSvg');
+  const tooltip = document.getElementById('auMapTooltip');
+  const wrap = document.getElementById('auMapWrap');
+  const W = 800, H = 620;
+
+  // Fix winding order once: D3 uses right-hand rule on sphere.
+  // If geoArea > 2π, polygon covers more than half the sphere (complement) → reverse it.
+  if (!auGeoJSON._windingFixed) {
+    auGeoJSON.features.forEach(f => {
+      if (d3.geoArea(f) > 2 * Math.PI) {
+        f.geometry.coordinates[0].reverse();
+      }
+    });
+    auGeoJSON._windingFixed = true;
+  }
+
+  const projection = d3.geoMercator().fitExtent([[30, 20],[W - 30, H - 60]], auGeoJSON);
+  const pathGen = d3.geoPath(projection);
+
+  function stateColor(energy) {
+    if (energy >= 80) return '#16a34a';
+    if (energy >= 50) return '#22c55e';
+    if (energy >= 30) return '#86efac';
+    if (energy >= 20) return '#bbf7d0';
+    return '#dcfce7';
+  }
+
+  const svg = d3.select(svgEl);
+  svg.selectAll('*').remove();
+  svg.attr('viewBox', `0 0 ${W} ${H}`);
+
+  // State paths
+  auGeoJSON.features.forEach(f => {
+    const id = f.id;
+    const sd = auStatesData[id];
+    const centroid = pathGen.centroid(f);
+
+    svg.append('path')
+      .attr('d', pathGen(f))
+      .attr('fill', stateColor(sd.energy))
+      .attr('stroke', '#fff').attr('stroke-width', 2)
+      .attr('cursor', 'pointer')
+      .attr('data-state', id)
+      .on('mouseenter', function(e) {
+        d3.select(this).attr('opacity', 0.8).attr('stroke', '#0f4a28').attr('stroke-width', 2.5);
+        tooltip.innerHTML = `
+          <strong style="font-size:1rem">${sd.name}</strong><br>
+          <span style="color:#d97706">⚡ Energy: <strong>${sd.energy}%</strong></span><br>
+          <span style="color:#dc2626">♻️ Plastic: <strong>${sd.plastic}%</strong></span><br>
+          <span style="color:#2563eb">🌊 Ocean: <strong>${sd.ocean}%</strong></span><br>
+          <span style="color:#16a34a">🌳 Land: <strong>${sd.land}%</strong></span><br>
+          <span style="font-size:0.75rem;color:#5a7d6a;margin-top:4px;display:block">${sd.detail}</span>
+        `;
+        tooltip.classList.add('visible');
+        const rect = wrap.getBoundingClientRect();
+        const svgRect = svgEl.getBoundingClientRect();
+        const sx = svgRect.width / W, sy = svgRect.height / H;
+        let tx = centroid[0] * sx + 20;
+        let ty = centroid[1] * sy - 60;
+        if (tx + 250 > rect.width) tx = centroid[0] * sx - 260;
+        if (ty < 0) ty = 10;
+        tooltip.style.left = tx + 'px';
+        tooltip.style.top = ty + 'px';
+      })
+      .on('mouseleave', function() {
+        d3.select(this).attr('opacity', 1).attr('stroke', '#fff').attr('stroke-width', 2);
+        tooltip.classList.remove('visible');
+      });
+
+    // Labels
+    const isSmall = id === 'ACT';
+    if (centroid[0] && centroid[1]) {
+      svg.append('text').attr('x', centroid[0]).attr('y', centroid[1] - 6)
+        .attr('text-anchor', 'middle').attr('fill', '#0f4a28')
+        .attr('font-size', isSmall ? 10 : 14).attr('font-weight', 800)
+        .attr('font-family', 'Inter,sans-serif').attr('pointer-events', 'none')
+        .text(id);
+      svg.append('text').attr('x', centroid[0]).attr('y', centroid[1] + 12)
+        .attr('text-anchor', 'middle').attr('fill', '#0f4a28')
+        .attr('font-size', isSmall ? 9 : 11).attr('font-weight', 600)
+        .attr('font-family', 'Inter,sans-serif').attr('pointer-events', 'none')
+        .text('⚡' + sd.energy + '%');
+    }
+  });
+
+  // Legend
+  const legendY = H - 50;
+  svg.append('text').attr('x', 30).attr('y', legendY).attr('fill', '#3a5c4a')
+    .attr('font-size', 11).attr('font-weight', 600).attr('font-family', 'Inter,sans-serif')
+    .text('Renewable Energy Share:');
+  const legendItems = [['#dcfce7','<20%'],['#bbf7d0','20-30%'],['#86efac','30-50%'],['#22c55e','50-80%'],['#16a34a','80%+']];
+  legendItems.forEach(([c,lbl], i) => {
+    const lx = 30 + i * 110;
+    svg.append('rect').attr('x', lx).attr('y', legendY + 10).attr('width', 16).attr('height', 16).attr('fill', c).attr('rx', 3);
+    svg.append('text').attr('x', lx + 22).attr('y', legendY + 23).attr('fill', '#5a7d6a').attr('font-size', 10).attr('font-family', 'Inter,sans-serif').text(lbl);
+  });
+}
+drawAuMap();
+
 // ── 20-Year Trend Chart ──
 const histData = {
   energy: {
