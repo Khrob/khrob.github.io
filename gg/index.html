@@ -365,6 +365,70 @@
   .summary-panel h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 6px; }
   .summary-panel > p { font-size: 0.9rem; color: var(--text-dim); margin-bottom: 16px; }
 
+  /* ── Trend Timeline ── */
+  .trend-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 32px;
+    box-shadow: var(--shadow-sm);
+  }
+  .trend-panel h3 {
+    font-size: 1.15rem; font-weight: 700; margin-bottom: 4px;
+  }
+  .trend-panel > p { font-size: 0.9rem; color: var(--text-dim); margin-bottom: 20px; }
+  .trend-tabs {
+    display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .trend-tab {
+    padding: 6px 14px; border: 2px solid var(--border); background: var(--surface);
+    border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s; color: var(--text-dim);
+  }
+  .trend-tab:hover { border-color: var(--text-dim); color: var(--text); }
+  .trend-tab.active { color: #fff; }
+  .trend-tab[data-goal="energy"].active { background: var(--goal-energy); border-color: var(--goal-energy); }
+  .trend-tab[data-goal="plastic"].active { background: var(--goal-plastic); border-color: var(--goal-plastic); }
+  .trend-tab[data-goal="ocean"].active { background: var(--goal-ocean); border-color: var(--goal-ocean); }
+  .trend-tab[data-goal="land"].active { background: var(--goal-land); border-color: var(--goal-land); }
+  .trend-tab[data-goal="all"].active { background: #0f4a28; border-color: #0f4a28; }
+  .trend-chart-wrap {
+    position: relative;
+    width: 100%;
+    padding-bottom: 8px;
+    overflow-x: auto;
+  }
+  .trend-chart-wrap svg { display: block; }
+  .trend-legend {
+    display: flex; gap: 20px; margin-top: 12px; flex-wrap: wrap;
+    font-size: 0.8rem; color: var(--text-dim);
+  }
+  .trend-legend span {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .legend-line {
+    width: 24px; height: 3px; border-radius: 2px; display: inline-block;
+  }
+  .legend-dash {
+    width: 24px; height: 0; border-top: 3px dashed; display: inline-block;
+  }
+  .trend-tooltip {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    box-shadow: var(--shadow-md);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 10;
+    white-space: nowrap;
+  }
+  .trend-tooltip.visible { opacity: 1; }
+
   /* ── Sources ── */
   .sources {
     margin-top: 32px; padding: 20px;
@@ -530,6 +594,24 @@
     </div>
     </a>
 
+  </div>
+
+  <!-- ── 20-Year Trend Timeline ── -->
+  <div class="trend-panel">
+    <h3>📈 20-Year Progress Timeline</h3>
+    <p>How each goal has tracked from 2005 to today — globally and in Australia.</p>
+    <div class="trend-tabs">
+      <button class="trend-tab active" data-goal="all">All Goals</button>
+      <button class="trend-tab" data-goal="energy">⚡ Energy</button>
+      <button class="trend-tab" data-goal="plastic">♻️ Plastic</button>
+      <button class="trend-tab" data-goal="ocean">🌊 Ocean</button>
+      <button class="trend-tab" data-goal="land">🌳 Land</button>
+    </div>
+    <div class="trend-chart-wrap" id="trendChartWrap">
+      <svg id="trendSvg" width="100%" height="380"></svg>
+      <div class="trend-tooltip" id="trendTooltip"></div>
+    </div>
+    <div class="trend-legend" id="trendLegend"></div>
   </div>
 
   <div class="summary-panel">
@@ -1052,6 +1134,179 @@ const animateRings = () => {
     ring.style.strokeDashoffset = C - (C * Math.min(pct, 100) / 100);
   });
 };
+// ── 20-Year Trend Chart ──
+const histData = {
+  energy: {
+    global: [{year:2005,value:12.4},{year:2008,value:14.5},{year:2010,value:20},{year:2012,value:22},{year:2015,value:23.7},{year:2018,value:26.5},{year:2020,value:28},{year:2022,value:30},{year:2023,value:29.9},{year:2024,value:32},{year:2025,value:34}],
+    australia: [{year:2005,value:9.5},{year:2008,value:9.8},{year:2010,value:10.5},{year:2012,value:12},{year:2015,value:16.2},{year:2018,value:24},{year:2020,value:28},{year:2022,value:35.9},{year:2023,value:37},{year:2024,value:36},{year:2025,value:43}],
+    target: 100, color: 'var(--goal-energy)', colorHex: '#f59e0b', label: 'Renewable Energy'
+  },
+  plastic: {
+    global: [{year:2005,value:5},{year:2010,value:7},{year:2015,value:9},{year:2019,value:9},{year:2022,value:9},{year:2024,value:9}],
+    australia: [{year:2010,value:10},{year:2016,value:12.6},{year:2018,value:18},{year:2019,value:16},{year:2022,value:13.9},{year:2023,value:13},{year:2024,value:13}],
+    target: 100, color: 'var(--goal-plastic)', colorHex: '#ef4444', label: 'Plastic Recycling'
+  },
+  ocean: {
+    global: [{year:2005,value:0.5},{year:2010,value:1.2},{year:2012,value:1.6},{year:2015,value:3.5},{year:2017,value:7},{year:2020,value:7.75},{year:2022,value:8.5},{year:2024,value:8.4},{year:2025,value:9.6}],
+    australia: [{year:2005,value:5},{year:2008,value:10},{year:2010,value:10.2},{year:2012,value:36.4},{year:2016,value:36.4},{year:2018,value:36.7},{year:2020,value:36.7},{year:2022,value:45},{year:2024,value:47}],
+    target: 30, color: 'var(--goal-ocean)', colorHex: '#3b82f6', label: 'Ocean Protection'
+  },
+  land: {
+    global: [{year:2005,value:11.5},{year:2010,value:12.5},{year:2012,value:13},{year:2015,value:14},{year:2016,value:14.7},{year:2018,value:15},{year:2020,value:15.7},{year:2021,value:17},{year:2024,value:17.5}],
+    australia: [{year:2004,value:10.5},{year:2006,value:11.6},{year:2008,value:12.8},{year:2010,value:13.4},{year:2012,value:15.5},{year:2014,value:17.9},{year:2016,value:19.6},{year:2018,value:19.7},{year:2020,value:19.8},{year:2022,value:22.1},{year:2024,value:22.6}],
+    target: 30, color: 'var(--goal-land)', colorHex: '#22c55e', label: 'Land Protection'
+  }
+};
+
+function drawTrendChart(goalKeys) {
+  const svg = document.getElementById('trendSvg');
+  const wrap = document.getElementById('trendChartWrap');
+  const legend = document.getElementById('trendLegend');
+  const tooltip = document.getElementById('trendTooltip');
+  const W = wrap.clientWidth - 2;
+  const H = 380;
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+
+  const pad = { top: 30, right: 30, bottom: 40, left: 50 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+
+  // Determine scales
+  const minYear = 2004, maxYear = 2026;
+  let maxVal = 0;
+  goalKeys.forEach(k => {
+    const d = histData[k];
+    d.global.forEach(p => { if (p.value > maxVal) maxVal = p.value; });
+    d.australia.forEach(p => { if (p.value > maxVal) maxVal = p.value; });
+    if (d.target <= 50 && d.target > maxVal) maxVal = d.target + 5;
+  });
+  // For "all" view cap at 60 for readability, unless ocean/land targets push higher
+  if (goalKeys.length > 1) maxVal = Math.max(maxVal, 50);
+  else maxVal = Math.min(Math.max(maxVal * 1.15, 10), goalKeys[0] === 'energy' ? 55 : maxVal * 1.2);
+
+  const xScale = (yr) => pad.left + ((yr - minYear) / (maxYear - minYear)) * cw;
+  const yScale = (v) => pad.top + ch - (v / maxVal) * ch;
+
+  let svgContent = '';
+
+  // Background
+  svgContent += `<rect x="0" y="0" width="${W}" height="${H}" fill="white" rx="0"/>`;
+
+  // Grid lines
+  const gridSteps = maxVal <= 30 ? 5 : 10;
+  for (let v = 0; v <= maxVal; v += gridSteps) {
+    const y = yScale(v);
+    svgContent += `<line x1="${pad.left}" y1="${y}" x2="${W - pad.right}" y2="${y}" stroke="#e8f0eb" stroke-width="1"/>`;
+    svgContent += `<text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" fill="#5a7d6a" font-size="11" font-family="Inter,sans-serif">${v}%</text>`;
+  }
+
+  // Year labels
+  for (let yr = 2005; yr <= 2025; yr += 5) {
+    const x = xScale(yr);
+    svgContent += `<line x1="${x}" y1="${pad.top}" x2="${x}" y2="${H - pad.bottom}" stroke="#e8f0eb" stroke-width="1" stroke-dasharray="4,4"/>`;
+    svgContent += `<text x="${x}" y="${H - pad.bottom + 20}" text-anchor="middle" fill="#5a7d6a" font-size="12" font-family="Inter,sans-serif">${yr}</text>`;
+  }
+
+  // Target lines for visible goals
+  goalKeys.forEach(k => {
+    const d = histData[k];
+    if (d.target <= maxVal * 1.1) {
+      const y = yScale(d.target);
+      svgContent += `<line x1="${pad.left}" y1="${y}" x2="${W - pad.right}" y2="${y}" stroke="${d.colorHex}" stroke-width="1" stroke-dasharray="6,4" opacity="0.35"/>`;
+      svgContent += `<text x="${W - pad.right + 4}" y="${y + 4}" fill="${d.colorHex}" font-size="9" font-family="Inter,sans-serif" opacity="0.6">${d.target}%</text>`;
+    }
+  });
+
+  // Draw lines + dots
+  const allDots = [];
+  goalKeys.forEach(k => {
+    const d = histData[k];
+    // Global line (dashed)
+    const gPoints = d.global.map(p => `${xScale(p.year)},${yScale(p.value)}`).join(' ');
+    svgContent += `<polyline points="${gPoints}" fill="none" stroke="${d.colorHex}" stroke-width="2.5" stroke-dasharray="6,4" opacity="0.5"/>`;
+    d.global.forEach(p => {
+      const cx = xScale(p.year), cy = yScale(p.value);
+      svgContent += `<circle cx="${cx}" cy="${cy}" r="3.5" fill="${d.colorHex}" opacity="0.5"/>`;
+      allDots.push({ x: cx, y: cy, year: p.year, value: p.value, label: d.label, scope: 'Global', color: d.colorHex });
+    });
+
+    // Australia line (solid, thicker)
+    const aPoints = d.australia.map(p => `${xScale(p.year)},${yScale(p.value)}`).join(' ');
+    svgContent += `<polyline points="${aPoints}" fill="none" stroke="${d.colorHex}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`;
+    d.australia.forEach(p => {
+      const cx = xScale(p.year), cy = yScale(p.value);
+      svgContent += `<circle cx="${cx}" cy="${cy}" r="4.5" fill="${d.colorHex}" stroke="white" stroke-width="2"/>`;
+      allDots.push({ x: cx, y: cy, year: p.year, value: p.value, label: d.label, scope: 'Australia', color: d.colorHex });
+    });
+  });
+
+  // Invisible hover rects for tooltip
+  svgContent += `<rect x="${pad.left}" y="${pad.top}" width="${cw}" height="${ch}" fill="transparent" id="trendHoverArea"/>`;
+
+  svg.innerHTML = svgContent;
+
+  // Legend
+  let legendHTML = '';
+  goalKeys.forEach(k => {
+    const d = histData[k];
+    legendHTML += `<span><span class="legend-line" style="background:${d.colorHex}"></span> ${d.label} (Australia)</span>`;
+    legendHTML += `<span><span class="legend-dash" style="border-color:${d.colorHex};opacity:0.5"></span> ${d.label} (Global)</span>`;
+  });
+  legend.innerHTML = legendHTML;
+
+  // Tooltip interaction
+  const hoverArea = document.getElementById('trendHoverArea');
+  hoverArea.addEventListener('mousemove', (e) => {
+    const rect = svg.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    // Find closest dot
+    let closest = null, minDist = Infinity;
+    allDots.forEach(dot => {
+      const dist = Math.hypot(dot.x - mx, dot.y - my);
+      if (dist < minDist) { minDist = dist; closest = dot; }
+    });
+    if (closest && minDist < 40) {
+      tooltip.innerHTML = `<strong style="color:${closest.color}">${closest.label}</strong><br>${closest.scope}: <strong>${closest.value}%</strong> (${closest.year})`;
+      tooltip.classList.add('visible');
+      let tx = closest.x + 12;
+      let ty = closest.y - 40;
+      if (tx + 160 > W) tx = closest.x - 160;
+      if (ty < 0) ty = closest.y + 12;
+      tooltip.style.left = tx + 'px';
+      tooltip.style.top = ty + 'px';
+    } else {
+      tooltip.classList.remove('visible');
+    }
+  });
+  hoverArea.addEventListener('mouseleave', () => {
+    tooltip.classList.remove('visible');
+  });
+}
+
+// Tab switching for trend chart
+document.querySelectorAll('.trend-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.trend-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const goal = tab.dataset.goal;
+    if (goal === 'all') {
+      drawTrendChart(['energy', 'plastic', 'ocean', 'land']);
+    } else {
+      drawTrendChart([goal]);
+    }
+  });
+});
+
+// Initial draw
+drawTrendChart(['energy', 'plastic', 'ocean', 'land']);
+// Redraw on resize
+window.addEventListener('resize', () => {
+  const activeGoal = document.querySelector('.trend-tab.active').dataset.goal;
+  drawTrendChart(activeGoal === 'all' ? ['energy', 'plastic', 'ocean', 'land'] : [activeGoal]);
+});
+
 // Initial state
 rings.forEach(ring => {
   const C = 2 * Math.PI * 28;
