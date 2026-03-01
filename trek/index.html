@@ -1117,6 +1117,10 @@ class WorldRenderer {
   // Quantize color to reduce material count (round to nearest 4 in each channel)
   quantizeColor(hex) {
     if (hex === null || hex === undefined) return 0x333333;
+    // Handle string colors (e.g. '#476b2e' from JSON)
+    if (typeof hex === 'string') {
+      hex = parseInt(hex.replace('#', ''), 16) || 0x333333;
+    }
     const r = ((hex >> 16) & 0xff) & 0xfc;
     const g = ((hex >> 8) & 0xff) & 0xfc;
     const b = (hex & 0xff) & 0xfc;
@@ -2649,9 +2653,16 @@ const Game = {
       }
 
       // Scale fog with zoom so it doesn't clip when zoomed out
-      const d = this.cameraCtrl.distance;
-      this.scene.fog.near = d * 1.2;
-      this.scene.fog.far = d * 3.0;
+      // In multiplayer, push fog far away so everything stays bright
+      if (MP.active) {
+        this.scene.fog.near = 200;
+        this.scene.fog.far = 300;
+        this.scene.fog.color.copy(this.scene.background);
+      } else {
+        const d = this.cameraCtrl.distance;
+        this.scene.fog.near = d * 1.2;
+        this.scene.fog.far = d * 3.0;
+      }
     }
     // Animate macguffin glow
     for (const c of this.characters) {
@@ -3559,16 +3570,17 @@ const Game = {
   },
 
   _applyObjectHighlight(mesh) {
-    // Add emissive glow to the object mesh
+    // Add emissive glow — clone materials so shared cache isn't affected
     this._highlightedObj = mesh;
     const applyGlow = (m) => {
       if (m.isMesh && m.material) {
-        m._savedEmissive = m.material.emissive ? m.material.emissive.clone() : null;
-        m._savedEmissiveIntensity = m.material.emissiveIntensity;
-        if (m.material.emissive) {
-          m.material.emissive.set(0x335577);
-          m.material.emissiveIntensity = 0.6;
+        m._origMaterial = m.material;
+        const clone = m.material.clone();
+        if (clone.emissive) {
+          clone.emissive.set(0x335577);
+          clone.emissiveIntensity = 0.6;
         }
+        m.material = clone;
       }
     };
     if (mesh.isMesh) applyGlow(mesh);
@@ -3578,11 +3590,10 @@ const Game = {
   _clearObjectHighlight() {
     if (!this._highlightedObj) return;
     const restoreGlow = (m) => {
-      if (m.isMesh && m.material && m._savedEmissive !== undefined) {
-        if (m.material.emissive && m._savedEmissive) m.material.emissive.copy(m._savedEmissive);
-        m.material.emissiveIntensity = m._savedEmissiveIntensity || 0;
-        delete m._savedEmissive;
-        delete m._savedEmissiveIntensity;
+      if (m.isMesh && m._origMaterial) {
+        m.material.dispose();
+        m.material = m._origMaterial;
+        delete m._origMaterial;
       }
     };
     const mesh = this._highlightedObj;
@@ -4214,7 +4225,7 @@ const MP = {
     Game._updateHud();
   },
 
-  async _replayOne(action) {
+  async _replayOne(action, instant = false) {
     const { action_type, action_data, player_idx } = action;
     const char = Game.characters[player_idx];
 
@@ -4223,6 +4234,16 @@ const MP = {
         if (!char) break;
         const path = action_data.path;
         if (!path || path.length < 2) break;
+
+        if (instant) {
+          // Instant: just teleport to final position
+          const end = path[path.length - 1];
+          char.x = end.x; char.z = end.z;
+          char.faceToward(end.x, end.z);
+          char.updateMeshPosition();
+          break;
+        }
+
         // Animate movement — returns a promise
         await new Promise(resolve => {
           const origFinish = () => {
@@ -4267,15 +4288,19 @@ const MP = {
       case 'SHOOT': {
         if (!char) break;
         char.faceToward(action_data.targetX, action_data.targetZ);
-        Game._muzzleFlash(char);
-        Game._shotLine(char.x, char.z, action_data.targetX, action_data.targetZ);
+        if (!instant) {
+          Game._muzzleFlash(char);
+          Game._shotLine(char.x, char.z, action_data.targetX, action_data.targetZ);
+        }
         // Apply damage/destruction
         if (action_data.destroyed) {
           const sy = Game.world.getSurfaceY(action_data.targetX, action_data.targetZ);
           if (sy >= 0) Game._destroyCrate(action_data.targetX, sy, action_data.targetZ);
         } else if (action_data.damage > 0) {
-          const objPos = new THREE.Vector3(action_data.targetX, Game.world.getSurfaceHeight(action_data.targetX, action_data.targetZ) + 0.5, action_data.targetZ);
-          Game._showFloater(objPos, `-${action_data.damage}`, '#ff6');
+          if (!instant) {
+            const objPos = new THREE.Vector3(action_data.targetX, Game.world.getSurfaceHeight(action_data.targetX, action_data.targetZ) + 0.5, action_data.targetZ);
+            Game._showFloater(objPos, `-${action_data.damage}`, '#ff6');
+          }
           // Update objectHp
           const sy = Game.world.getSurfaceY(action_data.targetX, action_data.targetZ);
           if (sy >= 0) {
@@ -4293,7 +4318,7 @@ const MP = {
           const def = char.getEquippedDef();
           if (def) char.getEquippedWeapon().currentAmmo -= def.burst;
         }
-        await this._delay(600);
+        if (!instant) await this._delay(600);
         break;
       }
 
@@ -4311,12 +4336,15 @@ const MP = {
         if (sy >= 0) {
           const key = Game.world.key(action_data.targetX, sy, action_data.targetZ);
           Game.lootedCrates.add(key);
-          const mk = `${action_data.targetX},${sy},${action_data.targetZ}`;
-          const mesh = Game.worldRenderer.meshes.get(mk);
-          if (mesh && mesh.material) mesh.material.color.multiplyScalar(0.5);
+          // Note: mesh dimming happens after rebuildAll, skip in instant mode
+          if (!instant) {
+            const mk = `${action_data.targetX},${sy},${action_data.targetZ}`;
+            const mesh = Game.worldRenderer.meshes.get(mk);
+            if (mesh && mesh.material) mesh.material.color.multiplyScalar(0.5);
+          }
         }
         // Show loot popup briefly
-        if (action_data.loot) {
+        if (!instant && action_data.loot) {
           Game._showLootPopup(action_data.loot, action_data.targetX, action_data.targetZ);
           await this._delay(1500);
           document.getElementById('loot-popup').style.display = 'none';
@@ -4385,163 +4413,226 @@ const MP = {
   // ── Test map generator ────────────────────────────────────
   generateTestMap(playerCount) {
     const actions = [];
-    const SIZE = 20;
+    const SIZE = 128;
 
-    // Ground tiles — mixed grass and dirt with variety
+    // Seeded pseudo-random number generator (deterministic)
+    const seed = 12345;
+    const rng = (x, z) => {
+      let h = seed + x * 374761393 + z * 668265263;
+      h = (h ^ (h >> 13)) * 1274126177;
+      h = h ^ (h >> 16);
+      return (h & 0x7fffffff) / 0x7fffffff;
+    };
+
+    // Determine which tiles are roads based on grid spacing
+    const isRoad = (x, z) => {
+      const mainRoadSpacing = 18;
+      const alleySpacing = 6;
+      const roadWidth = 2;
+      const mainRoadOffsets = [0, 1];
+      const alleyOffsets = [0, 1];
+      const xMainRoad = mainRoadOffsets.some(off => Math.abs((x - off) % mainRoadSpacing) < roadWidth);
+      const zMainRoad = mainRoadOffsets.some(off => Math.abs((z - off) % mainRoadSpacing) < roadWidth);
+      const xAlley = alleyOffsets.some(off => Math.abs((x - off) % alleySpacing) === 0);
+      const zAlley = alleyOffsets.some(off => Math.abs((z - off) % alleySpacing) === 0);
+      return (xMainRoad && z % mainRoadSpacing < 3) || (zMainRoad && x % mainRoadSpacing < 3) || (xAlley && z % alleySpacing < 2) || (zAlley && x % alleySpacing < 2);
+    };
+
+    const isPavement = (x, z) => {
+      const mainRoadSpacing = 18;
+      const mainRoadOffsets = [0, 1];
+      const roadWidth = 2;
+      const xMainRoad = mainRoadOffsets.some(off => Math.abs((x - off) % mainRoadSpacing) < roadWidth);
+      const zMainRoad = mainRoadOffsets.some(off => Math.abs((z - off) % mainRoadSpacing) < roadWidth);
+      const xMainPave = mainRoadOffsets.some(off => Math.abs((x - off) % mainRoadSpacing) === roadWidth || Math.abs((x - off) % mainRoadSpacing) === roadWidth + 1);
+      const zMainPave = mainRoadOffsets.some(off => Math.abs((z - off) % mainRoadSpacing) === roadWidth || Math.abs((z - off) % mainRoadSpacing) === roadWidth + 1);
+      return (xMainRoad && (zMainPave)) || (zMainRoad && (xMainPave));
+    };
+
+    // ── Ground tiles with noise variation ────────────────────
     for (let x = 0; x < SIZE; x++) {
       for (let z = 0; z < SIZE; z++) {
-        const n = Math.sin(x * 2.5 + 0.1) * Math.cos(z * 2.5 + 0.1) * 0.5;
+        const r1 = rng(x * 73, z * 97);
+        const r2 = rng(x * 41, z * 59);
+        const variation = Math.sin(x * 0.3 + r1) * Math.cos(z * 0.3 + r2) * 0.08;
         const base = [0.28, 0.42, 0.18];
-        const r = Math.max(0, Math.min(1, base[0] + n * 0.03));
-        const g = Math.max(0, Math.min(1, base[1] + n * 0.03));
-        const b = Math.max(0, Math.min(1, base[2] + n * 0.03));
-        const color = '#' + [r,g,b].map(v => Math.round(v*255).toString(16).padStart(2,'0')).join('');
+        const r = Math.max(0, Math.min(1, base[0] + variation));
+        const g = Math.max(0, Math.min(1, base[1] + variation));
+        const b = Math.max(0, Math.min(1, base[2] + variation));
+        const color = '#' + [r, g, b].map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
         actions.push({ type: 'PLACE_TILE', data: { x, y: 0, z, tileType: 'grass', h: 2, color } });
       }
     }
 
-    // Roads — cross-shaped
-    for (let i = 0; i < SIZE; i++) {
-      // Horizontal road
-      for (let dz = 9; dz <= 10; dz++) {
-        actions.push({ type: 'PLACE_TILE', data: { x: i, y: 0, z: dz, tileType: 'road', h: 2, color: '#666666' } });
-      }
-      // Vertical road
-      for (let dx = 9; dx <= 10; dx++) {
-        actions.push({ type: 'PLACE_TILE', data: { x: dx, y: 0, z: i, tileType: 'road', h: 2, color: '#666666' } });
-      }
-    }
-    // Pavement alongside roads
-    for (let i = 0; i < SIZE; i++) {
-      for (const dz of [8, 11]) {
-        actions.push({ type: 'PLACE_TILE', data: { x: i, y: 0, z: dz, tileType: 'pavement', h: 2, color: '#999999' } });
-      }
-      for (const dx of [8, 11]) {
-        actions.push({ type: 'PLACE_TILE', data: { x: dx, y: 0, z: i, tileType: 'pavement', h: 2, color: '#999999' } });
+    // ── Road network ──────────────────────────────────────────
+    for (let x = 0; x < SIZE; x++) {
+      for (let z = 0; z < SIZE; z++) {
+        if (isRoad(x, z)) {
+          actions.push({ type: 'PLACE_TILE', data: { x, y: 0, z, tileType: 'road', h: 2, color: '#666666' } });
+        } else if (isPavement(x, z)) {
+          actions.push({ type: 'PLACE_TILE', data: { x, y: 0, z, tileType: 'pavement', h: 2, color: '#999999' } });
+        }
       }
     }
 
-    // ── Buildings ──────────────────────────────────────────────
-    // NW building (L-shaped)
-    const nwWalls = [
-      [2,2],[3,2],[4,2],[5,2],[6,2],
-      [2,3],[2,4],[2,5],[2,6],
-      [6,3],[6,4],
-      [4,6],[5,6],[6,6],
-      [4,4],[4,5], // interior wall
-    ];
-    for (const [wx, wz] of nwWalls) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: wx, y: 1, z: wz, objType: 'wall', h: 3, color: '#776655' } });
+    // ── Procedural buildings ───────────────────────────────────
+    const isInRoadArea = (x, z) => isRoad(x, z) || isPavement(x, z);
+    const buildings = [];
+    for (let bx = 4; bx < SIZE - 4; bx += 20) {
+      for (let bz = 4; bz < SIZE - 4; bz += 20) {
+        const r = rng(bx * 83, bz * 127);
+        const w = 4 + Math.floor(r * 4);
+        const h = 4 + Math.floor(rng(bx * 89, bz * 131) * 4);
+        const damaged = r > 0.65;
+        buildings.push({ x: bx, z: bz, w, h, damaged });
+      }
     }
 
-    // SE building (square with gap)
-    const seWalls = [
-      [13,13],[14,13],[15,13],[16,13],[17,13],
-      [13,14],[13,15],[13,16],[13,17],
-      [17,14],[17,15],[17,16],[17,17],
-      [14,17],[15,17],[16,17],
-    ];
-    for (const [wx, wz] of seWalls) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: wx, y: 1, z: wz, objType: 'wall', h: 3, color: '#665544' } });
+    for (const b of buildings) {
+      const walls = [];
+      for (let dx = 0; dx < b.w; dx++) {
+        for (let dz = 0; dz < b.h; dz++) {
+          if (dx === 0 || dx === b.w - 1 || dz === 0 || dz === b.h - 1) {
+            if (!isInRoadArea(b.x + dx, b.z + dz)) {
+              walls.push([b.x + dx, b.z + dz]);
+            }
+          }
+        }
+      }
+      for (const [wx, wz] of walls) {
+        if (b.damaged && rng(wx * 7, wz * 11) > 0.6) {
+          actions.push({ type: 'PLACE_OBJECT', data: { x: wx, y: 1, z: wz, objType: 'wall_damaged', h: 2, color: '#887766' } });
+        } else {
+          actions.push({ type: 'PLACE_OBJECT', data: { x: wx, y: 1, z: wz, objType: 'wall', h: 3, color: '#776655' } });
+        }
+      }
     }
 
-    // NE ruin (damaged walls)
-    const neWalls = [[14,2],[15,2],[16,2],[14,3],[16,4],[14,5],[15,5],[16,5]];
-    for (const [wx, wz] of neWalls) {
-      const damaged = Math.random() > 0.4;
-      actions.push({ type: 'PLACE_OBJECT', data: { x: wx, y: 1, z: wz, objType: damaged ? 'wall_damaged' : 'wall', h: damaged ? 2 : 3, color: '#887766' } });
+    // ── Scattered cover objects (crates, barrels, sandbags) ─────
+    const coverPoints = [];
+    for (let i = 0; i < 150; i++) {
+      const r1 = rng(i * 13, i * 17);
+      const r2 = rng(i * 19, i * 23);
+      const x = Math.floor(r1 * (SIZE - 4)) + 2;
+      const z = Math.floor(r2 * (SIZE - 4)) + 2;
+      if (!isInRoadArea(x, z)) {
+        coverPoints.push({ x, z, type: rng(i * 29, i * 31) });
+      }
     }
 
-    // SW structure (low walls + sandbags, military outpost)
-    const swLow = [[3,14],[4,14],[5,14],[3,15],[5,16],[3,17],[4,17],[5,17]];
-    for (const [wx, wz] of swLow) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: wx, y: 1, z: wz, objType: 'wall_low', h: 1, color: '#887766' } });
-    }
-    const sandbags = [[4,13],[6,15],[6,16],[2,16]];
-    for (const [sx, sz] of sandbags) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: sx, y: 1, z: sz, objType: 'sandbag', h: 1, color: '#8a7a5a' } });
-    }
-
-    // ── Cover objects in streets ──────────────────────────────
-    // Central cover near crossroads
-    const centralCover = [[7,9],[7,10],[12,9],[12,10]];
-    for (const [cx, cz] of centralCover) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: cx, y: 1, z: cz, objType: 'wall_low', h: 1, color: '#777777' } });
+    for (const pt of coverPoints.slice(0, 150)) {
+      const t = pt.type;
+      if (t < 0.5) {
+        actions.push({ type: 'PLACE_OBJECT', data: { x: pt.x, y: 1, z: pt.z, objType: 'crate_wood', h: 1, color: '#8b6914' } });
+      } else if (t < 0.75) {
+        actions.push({ type: 'PLACE_OBJECT', data: { x: pt.x, y: 1, z: pt.z, objType: 'crate_metal', h: 1, color: '#556677' } });
+      } else if (t < 0.9) {
+        actions.push({ type: 'PLACE_OBJECT', data: { x: pt.x, y: 1, z: pt.z, objType: 'barrel', h: 1, color: '#445544' } });
+      } else {
+        actions.push({ type: 'PLACE_OBJECT', data: { x: pt.x, y: 1, z: pt.z, objType: 'sandbag', h: 1, color: '#8a7a5a' } });
+      }
     }
 
-    // ── Destructible crates (lots!) ───────────────────────────
-    const woodCrates = [[3,3],[5,4],[15,3],[15,14],[4,15],[16,16],[8,5],[11,14],[7,12],[12,7]];
-    for (const [cx, cz] of woodCrates) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: cx, y: 1, z: cz, objType: 'crate_wood', h: 1, color: '#8b6914' } });
+    // ── Rubble piles near damaged buildings ────────────────────
+    for (const b of buildings) {
+      if (b.damaged) {
+        for (let i = 0; i < 3; i++) {
+          const r1 = rng(b.x * 37 + i, b.z * 41 + i);
+          const r2 = rng(b.x * 43 + i, b.z * 47 + i);
+          const rx = b.x + Math.floor(r1 * b.w);
+          const rz = b.z + Math.floor(r2 * b.h);
+          if (!isInRoadArea(rx, rz)) {
+            actions.push({ type: 'PLACE_OBJECT', data: { x: rx, y: 1, z: rz, objType: 'rubble', h: 1, color: '#665544' } });
+          }
+        }
+      }
     }
 
-    // Metal crates (lootable)
-    const metalCrates = [[4,3],[14,14],[16,15],[3,16],[15,4],[10,5]];
-    for (const [cx, cz] of metalCrates) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: cx, y: 1, z: cz, objType: 'crate_metal', h: 1, color: '#556677' } });
+    // ── Vehicles on roads ──────────────────────────────────────
+    for (let i = 0; i < 8; i++) {
+      const r1 = rng(i * 53, i * 61);
+      const r2 = rng(i * 67, i * 71);
+      let x, z;
+      for (let tries = 0; tries < 10; tries++) {
+        x = Math.floor(r1 * (SIZE - 4)) + 2;
+        z = Math.floor(r2 * (SIZE - 4)) + 2;
+        if (isRoad(x, z)) break;
+      }
+      if (isRoad(x, z)) {
+        const vtype = rng(i * 73, i * 79) > 0.5 ? 'car' : 'dumpster';
+        actions.push({ type: 'PLACE_OBJECT', data: { x, y: 1, z, objType: vtype, h: vtype === 'car' ? 1 : 2, color: vtype === 'car' ? '#3a5577' : '#2a4a2a' } });
+      }
     }
 
-    // ── Barrels (some will be on fire) ────────────────────────
-    const barrels = [[2,9],[17,10],[6,7],[13,12],[8,3],[11,16],[1,12],[18,7]];
-    for (const [bx, bz] of barrels) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: bx, y: 1, z: bz, objType: 'barrel', h: 1, color: '#445544' } });
+    // ── Street lamps at intersections ──────────────────────────
+    for (let x = 9; x < SIZE; x += 18) {
+      for (let z = 9; z < SIZE; z += 18) {
+        actions.push({ type: 'PLACE_OBJECT', data: { x, y: 1, z, objType: 'street_lamp', h: 5, color: '#555558' } });
+      }
     }
 
-    // ── Rubble piles ──────────────────────────────────────────
-    const rubble = [[16,3],[14,4],[7,13],[6,14],[12,6]];
-    for (const [rx, rz] of rubble) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: rx, y: 1, z: rz, objType: 'rubble', h: 1, color: '#665544' } });
+    // ── Trees and bushes at edges and gaps ─────────────────────
+    for (let i = 0; i < 60; i++) {
+      const r1 = rng(i * 83, i * 89);
+      const r2 = rng(i * 97, i * 101);
+      const x = Math.floor(r1 * (SIZE - 4)) + 2;
+      const z = Math.floor(r2 * (SIZE - 4)) + 2;
+      if (!isInRoadArea(x, z)) {
+        const isTree = rng(i * 103, i * 107) > 0.5;
+        actions.push({ type: 'PLACE_OBJECT', data: { x, y: 1, z, objType: isTree ? 'tree' : 'bush', h: isTree ? 3 : 2, color: isTree ? '#2a5a2a' : '#1a4a1a' } });
+      }
     }
 
-    // ── Vehicles ──────────────────────────────────────────────
-    // Car on horizontal road
-    actions.push({ type: 'PLACE_OBJECT', data: { x: 5, y: 1, z: 9, objType: 'car', h: 1, color: '#3a5577' } });
-    // Dumpster near SE building
-    actions.push({ type: 'PLACE_OBJECT', data: { x: 12, y: 1, z: 17, objType: 'dumpster', h: 2, color: '#2a4a2a' } });
-
-    // ── Street lamps ──────────────────────────────────────────
-    const lamps = [[0,9],[0,10],[19,9],[19,10],[9,0],[10,0],[9,19],[10,19]];
-    for (const [lx, lz] of lamps) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: lx, y: 1, z: lz, objType: 'street_lamp', h: 5, color: '#555558' } });
+    // ── Fences around some buildings ───────────────────────────
+    for (let i = 0; i < 20; i++) {
+      const r1 = rng(i * 109, i * 113);
+      const r2 = rng(i * 127, i * 131);
+      const bIdx = Math.floor(r1 * buildings.length);
+      if (bIdx < buildings.length) {
+        const b = buildings[bIdx];
+        const side = Math.floor(r2 * 4);
+        const fenceLen = 3 + Math.floor(r2 * 3);
+        for (let j = 0; j < fenceLen; j++) {
+          let fx, fz;
+          if (side === 0) {
+            fx = b.x + j;
+            fz = b.z - 1;
+          } else if (side === 1) {
+            fx = b.x + b.w;
+            fz = b.z + j;
+          } else if (side === 2) {
+            fx = b.x + j;
+            fz = b.z + b.h;
+          } else {
+            fx = b.x - 1;
+            fz = b.z + j;
+          }
+          if (fx >= 0 && fx < SIZE && fz >= 0 && fz < SIZE && !isInRoadArea(fx, fz)) {
+            actions.push({ type: 'PLACE_OBJECT', data: { x: fx, y: 1, z: fz, objType: 'fence', h: 1, color: '#5a4a32' } });
+          }
+        }
+      }
     }
 
-    // ── Trees & vegetation ────────────────────────────────────
-    const trees = [[0,0],[19,0],[0,19],[19,19],[1,7],[18,12],[7,1],[12,18],[0,5],[19,14]];
-    for (const [tx, tz] of trees) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: tx, y: 1, z: tz, objType: 'tree', h: 3, color: '#2a5a2a' } });
-    }
-    const bushes = [[1,6],[18,13],[7,0],[12,19],[0,4],[19,15],[6,1],[13,18]];
-    for (const [bx, bz] of bushes) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: bx, y: 1, z: bz, objType: 'bush', h: 2, color: '#1a4a1a' } });
-    }
-
-    // ── Fences ────────────────────────────────────────────────
-    for (let z = 2; z <= 6; z++) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: 7, y: 1, z, objType: 'fence', h: 1, color: '#5a4a32' } });
-    }
-    for (let z = 13; z <= 17; z++) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: 12, y: 1, z, objType: 'fence', h: 1, color: '#5a4a32' } });
+    // ── Fires on barrels and in ruins ──────────────────────────
+    for (let i = 0; i < 15; i++) {
+      const r1 = rng(i * 137, i * 139);
+      const r2 = rng(i * 149, i * 151);
+      let fx = Math.floor(r1 * (SIZE - 4)) + 2;
+      let fz = Math.floor(r2 * (SIZE - 4)) + 2;
+      if (!isInRoadArea(fx, fz)) {
+        const intensity = 0.8 + rng(i * 157, i * 163) * 0.8;
+        const radius = 0.2 + rng(i * 167, i * 173) * 0.4;
+        actions.push({ type: 'SPAWN_FIRE', data: { x: fx, z: fz, intensity, radius, yOffset: 0.5 } });
+      }
     }
 
-    // ── Fires ──────────────────────────────────────────────────
-    // Barrel fires
-    const barrelFires = [[2,9],[13,12],[18,7]];
-    for (const [fx, fz] of barrelFires) {
-      actions.push({ type: 'SPAWN_FIRE', data: { x: fx, z: fz, intensity: 1.2, radius: 0.25, yOffset: 0.8 } });
-    }
-    // Ground fires (ruins, debris)
-    const groundFires = [[16,3],[14,4]];
-    for (const [fx, fz] of groundFires) {
-      actions.push({ type: 'SPAWN_FIRE', data: { x: fx, z: fz, intensity: 0.8, radius: 0.4, yOffset: 0.1 } });
-    }
-    // Big fire in NE ruins
-    actions.push({ type: 'SPAWN_FIRE', data: { x: 15, z: 3, intensity: 1.8, radius: 0.5, yOffset: 0.2 } });
-
-    // Player spawns at opposite corners
+    // ── Player spawns at well-separated corners ────────────────
     const spawns = [
-      { x: 1, z: 1 },   // Player 0 (NW)
-      { x: 18, z: 18 },  // Player 1 (SE)
-      { x: 18, z: 1 },   // Player 2 (NE)
+      { x: 8, z: 8 },        // Player 0 (NW)
+      { x: SIZE - 8, z: SIZE - 8 },  // Player 1 (SE)
+      { x: SIZE - 8, z: 8 },   // Player 2 (NE)
+      { x: 8, z: SIZE - 8 },   // Player 3 (SW)
     ];
     for (let i = 0; i < playerCount; i++) {
       const sp = spawns[i % spawns.length];
@@ -4575,16 +4666,35 @@ const MP = {
       `turns.php?action=poll&matchToken=${this.matchToken}&playerToken=${this.playerToken}&afterId=0`
     );
 
-    // Fast-replay all actions (no animation delays)
+    // Fast-replay all actions instantly (no animation, no delays)
     if (res.actions) {
+      console.log(`[MP] Fast-replaying ${res.actions.length} actions...`);
       for (const action of res.actions) {
         if (action.id > this.lastActionId) this.lastActionId = action.id;
-        await this._replayOne(action);
+        try {
+          await this._replayOne(action, true);  // instant=true
+        } catch (e) {
+          console.error(`[MP] Error replaying action ${action.action_type}:`, e, action);
+        }
       }
     }
 
-    // Render the world
+    // Build world meshes now that all blocks are placed
+    console.log(`[MP] Replay done. ${Game.world.blocks.size} blocks, ${Game.characters.length} chars`);
     Game.worldRenderer.rebuildAll(Game.world, Game.scene);
+
+    // Apply looted crate dimming after meshes exist
+    for (const key of Game.lootedCrates) {
+      const mesh = Game.worldRenderer.meshes.get(key);
+      if (mesh && mesh.material) mesh.material.color.multiplyScalar(0.5);
+    }
+
+    // Ensure lighting is correct and disable scene fog for MP
+    Game.dayNight.update(Game.turn);
+    Game.scene.fog.near = 200;
+    Game.scene.fog.far = 300;
+    Game.scene.fog.color.copy(Game.scene.background);
+
     Game._updateFogAndRender();
     Game._updateHud();
 
