@@ -43,7 +43,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
    ============================================================ */
 #game-view { flex-direction: column; }
 #game-canvas-wrap { flex: 1; position: relative; }
-#game-canvas-wrap canvas { display: block; width: 100%; height: 100%; }
+#game-canvas-wrap canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
 /* HUD overlay */
 #hud {
@@ -192,10 +192,15 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
 #mp-lobby .player-list { margin: 1rem 0; }
 #mp-lobby .player-item { padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); color: #ccc; }
 #mp-lobby .player-item .host-badge { color: #f0c040; font-size: 0.75rem; margin-left: 0.5rem; }
-#mp-share-url { font-family: monospace; font-size: 0.8rem; color: #8ab4f8; background: rgba(0,0,0,0.3); padding: 0.5rem; border-radius: 4px; word-break: break-all; cursor: pointer; margin: 0.8rem 0; }
+#mp-invite-btn { background: rgba(100,140,255,0.15); border: 1px solid rgba(100,140,255,0.3); color: #b0c8ff; }
+.mp-history-item { padding: 0.5rem; margin-bottom: 0.4rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.mp-history-item:hover { background: rgba(100,140,255,0.1); border-color: rgba(100,140,255,0.3); }
+.mp-history-item .name { color: #ccc; font-size: 0.9rem; }
+.mp-history-item .meta { color: #666; font-size: 0.75rem; }
 #mp-share-url:hover { color: #fff; }
 #mp-status { color: #888; font-size: 0.85rem; margin-top: 0.5rem; }
 #mp-waiting-banner { display: none; position: absolute; bottom: 4rem; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); border: 1px solid rgba(100,140,255,0.3); color: #b0c8ff; padding: 0.6rem 1.5rem; border-radius: 6px; font-size: 0.9rem; z-index: 25; }
+#mp-ready-btn { display: none; position: absolute; bottom: 4rem; left: 50%; transform: translateX(-50%); background: rgba(50,180,80,0.9); border: 2px solid rgba(80,220,100,0.6); color: #fff; padding: 0.8rem 2.5rem; border-radius: 8px; font-size: 1.1rem; font-weight: bold; z-index: 30; cursor: pointer; letter-spacing: 0.05em; text-transform: uppercase; }
 </style>
 </head>
 <body>
@@ -210,7 +215,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
     <button onclick="App.loadGame()" id="btn-continue" style="display:none">Continue</button>
     <button onclick="App.switchTo('party-screen')">Party</button>
     <button onclick="App.switchTo('editor-screen')">Editor</button>
-    <button onclick="App.switchTo('mp-screen')">Multiplayer</button>
+    <button onclick="App.switchTo('mp-screen'); MP.renderHistory()">Multiplayer</button>
   </div>
 </div>
 
@@ -229,6 +234,12 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
     <div id="mp-status"></div>
   </div>
 
+  <!-- Recent games list -->
+  <div class="mp-panel" id="mp-history" style="display:none">
+    <h3>Your Games</h3>
+    <div id="mp-history-list"></div>
+  </div>
+
   <!-- Join panel (shown when arriving via invite URL) -->
   <div class="mp-panel" id="mp-join" style="display:none">
     <h3>Join Match</h3>
@@ -241,9 +252,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
   <!-- Lobby panel (shown after create/join) -->
   <div class="mp-panel" id="mp-lobby">
     <h3 id="mp-lobby-title">Match Lobby</h3>
-    <div id="mp-share-url" onclick="MP.copyShareUrl()" title="Click to copy"></div>
     <div class="player-list" id="mp-player-list"></div>
     <div id="mp-lobby-actions">
+      <button id="mp-invite-btn" onclick="MP.copyShareUrl()" style="display:none">Copy Invite Link</button>
       <button class="primary" id="mp-start-btn" onclick="MP.uiStart()" style="display:none">Start Game</button>
       <span id="mp-lobby-status" style="color:#888;">Waiting for host to start...</span>
     </div>
@@ -317,6 +328,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
     </div>
     <!-- Multiplayer waiting banner -->
     <div id="mp-waiting-banner">Waiting for other players...</div>
+    <!-- Ready button (shown after replay, before your turn starts) -->
+    <button id="mp-ready-btn" onclick="MP.onReady()" style="display:none">Ready</button>
   </div>
   <button class="back-btn" onclick="App.switchTo('main-menu')">☰ Menu</button>
 </div>
@@ -2019,6 +2032,14 @@ class Character {
     if (this.ring) this.ring.position.y = -0.52; // slightly above ground to avoid z-fighting
   }
 
+  faceToward(tx, tz) {
+    const dx = tx - this.mesh.position.x;
+    const dz = tz - this.mesh.position.z;
+    if (Math.abs(dx) > 0.01 || Math.abs(dz) > 0.01) {
+      this.mesh.rotation.y = Math.atan2(dx, dz);
+    }
+  }
+
   select() { this.ring.visible = true; }
   deselect() { this.ring.visible = false; }
 
@@ -2344,6 +2365,11 @@ class IsoCameraController {
       if (e.key === 'q' || e.key === 'Q') { this.rotate(-1); }
       if (e.key === 'e' || e.key === 'E') { this.rotate(1); }
     });
+
+    // ── Touch controls ──────────────────────────────────────────
+    // Managed by Game._initTouch() — the camera controller exposes
+    // methods and the touch handler calls them directly.
+    this._touch = { active: false, fingers: 0, startX: 0, startY: 0, startDist: 0, startCenterX: 0, startCenterY: 0, rotated: false };
   }
 
   rotate(dir) {
@@ -2409,25 +2435,22 @@ class DayNightCycle {
     this.ambientLight = ambientLight;
     this.scene = scene;
     this.turnsPerDay = 20;
+    this.turnOffset = 6; // start at ~11am instead of dawn
     this.currentTurn = 0;
   }
 
   getPhase() {
-    const t = (this.currentTurn % this.turnsPerDay) / this.turnsPerDay;
-    if (t < 0.25) return 'Dawn';
-    if (t < 0.5) return 'Day';
-    if (t < 0.75) return 'Dusk';
-    return 'Night';
+    return 'Day'; // locked to daytime for now
   }
 
   getVisibilityRange() {
-    const phase = this.getPhase();
-    return phase === 'Night' ? 6 : phase === 'Dusk' || phase === 'Dawn' ? 8 : 10;
+    return 10; // full visibility
   }
 
   update(turn) {
     this.currentTurn = turn;
-    const t = (turn % this.turnsPerDay) / this.turnsPerDay;
+    // Locked to bright daytime for now
+    const t = 0.375; // ~11am — peak brightness
     const cycle = Math.sin(t * Math.PI * 2 - Math.PI / 2) * 0.5 + 0.5; // 0=midnight, 1=noon
 
     // Ambient intensity
@@ -2558,9 +2581,11 @@ const Game = {
     this.renderer.domElement.addEventListener('mousedown', (e) => this._onMouseDown(e));
     window.addEventListener('mousemove', (e) => this._onDragMove(e));
     window.addEventListener('mouseup', (e) => this._onMouseUp(e));
+    this._initTouch();
 
     // Game keyboard shortcuts
     window.addEventListener('keydown', (e) => {
+      if (MP.active && !MP.myTurnActive) return; // block actions while waiting
       if (document.getElementById('inventory-panel').style.display !== 'none' && e.key === 'Escape') {
         this.toggleInventory(); e.preventDefault(); return;
       }
@@ -2607,7 +2632,7 @@ const Game = {
     this.cameraCtrl.tick();
     // Keep shadow camera centered on party, size frustum to match zoom
     if (this.characters.length > 0) {
-      const c0 = this.characters[0];
+      const c0 = this.selectedChar || this.characters[0];
       this.dirLight.target.position.set(c0.x, 0, c0.z);
       this.dirLight.position.set(c0.x + 25, 15, c0.z + 5);
       this.dirLight.target.updateMatrixWorld();
@@ -2640,6 +2665,9 @@ const Game = {
       const pulse = 0.12 + Math.sin(Date.now() * 0.003) * 0.08; // 0.04 to 0.20
       this.worldRenderer.moveRangeMat.opacity = pulse;
     }
+
+    // Update fire particles
+    this._updateFires();
 
     // Camera occlusion — make blocks between camera and party members transparent
     this._updateOcclusion();
@@ -2698,6 +2726,10 @@ const Game = {
   },
 
   _updateFogAndRender() {
+    if (MP.active) {
+      // In multiplayer, skip fog — everything stays visible from rebuildAll
+      return;
+    }
     const positions = this.characters.map(c => ({ x: c.x, z: c.z }));
     const range = this.dayNight.getVisibilityRange();
     const visibleSet = this.fog.calculate(positions, range);
@@ -2705,8 +2737,9 @@ const Game = {
   },
 
   _updateHud() {
+    const refChar = this.selectedChar || this.characters.find(c => c);
     document.getElementById('hud-dist-val').textContent =
-      Math.round(Math.sqrt(this.characters[0].x ** 2 + this.characters[0].z ** 2));
+      refChar ? Math.round(Math.sqrt(refChar.x ** 2 + refChar.z ** 2)) : '—';
 
     // Combat-only HUD elements
     document.getElementById('hud-turn').style.display = this.inCombat ? 'block' : 'none';
@@ -2879,6 +2912,9 @@ const Game = {
     if (this.inCombat) char.ap -= def.apCost;
     w.currentAmmo -= def.burst;
 
+    // Face toward target
+    char.faceToward(tx, tz);
+
     // Muzzle flash effect
     this._muzzleFlash(char);
 
@@ -2948,25 +2984,132 @@ const Game = {
   },
 
   _muzzleFlash(char) {
-    const flashGeo = new THREE.SphereGeometry(0.12, 6, 6);
-    const flashMat = new THREE.MeshBasicMaterial({ color: 0xffcc44 });
+    // Bright flash sphere
+    const flashGeo = new THREE.SphereGeometry(0.15, 8, 8);
+    const flashMat = new THREE.MeshBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 1 });
     const flash = new THREE.Mesh(flashGeo, flashMat);
-    flash.position.copy(char.mesh.position);
-    flash.position.y += 0.3;
+    const muzzlePos = char.mesh.position.clone();
+    muzzlePos.y += 0.3;
+    // Offset forward in facing direction
+    const facing = char.mesh.rotation.y;
+    muzzlePos.x += Math.sin(facing) * 0.3;
+    muzzlePos.z += Math.cos(facing) * 0.3;
+    flash.position.copy(muzzlePos);
     this.scene.add(flash);
-    setTimeout(() => { this.scene.remove(flash); flashGeo.dispose(); flashMat.dispose(); }, 80);
+
+    // Point light for flash
+    const flashLight = new THREE.PointLight(0xffaa22, 3, 4);
+    flashLight.position.copy(muzzlePos);
+    this.scene.add(flashLight);
+
+    // Muzzle spark particles
+    for (let i = 0; i < 5; i++) {
+      const pGeo = new THREE.SphereGeometry(0.03, 4, 4);
+      const pMat = new THREE.MeshBasicMaterial({ color: Math.random() > 0.5 ? 0xffcc33 : 0xff8800 });
+      const spark = new THREE.Mesh(pGeo, pMat);
+      spark.position.copy(muzzlePos);
+      this.scene.add(spark);
+      const vx = Math.sin(facing) * (2 + Math.random() * 2) + (Math.random() - 0.5) * 1.5;
+      const vy = (Math.random() - 0.3) * 2;
+      const vz = Math.cos(facing) * (2 + Math.random() * 2) + (Math.random() - 0.5) * 1.5;
+      const st = performance.now();
+      const tick = (now) => {
+        const t = (now - st) / 1000;
+        spark.position.x = muzzlePos.x + vx * t;
+        spark.position.y = muzzlePos.y + vy * t - 2 * t * t;
+        spark.position.z = muzzlePos.z + vz * t;
+        pMat.opacity = 1 - t * 4;
+        if (t > 0.25) { this.scene.remove(spark); pGeo.dispose(); pMat.dispose(); return; }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+
+    // Fade flash
+    const startT = performance.now();
+    const fadeTick = (now) => {
+      const t = (now - startT) / 100;
+      flashMat.opacity = Math.max(0, 1 - t);
+      flash.scale.setScalar(1 + t * 2);
+      flashLight.intensity = Math.max(0, 3 - t * 6);
+      if (t > 1) {
+        this.scene.remove(flash); flashGeo.dispose(); flashMat.dispose();
+        this.scene.remove(flashLight); flashLight.dispose();
+        return;
+      }
+      requestAnimationFrame(fadeTick);
+    };
+    requestAnimationFrame(fadeTick);
   },
 
   _shotLine(x0, z0, x1, z1) {
     const h0 = this.world.getSurfaceHeight(x0, z0) + 0.8;
     const h1 = this.world.getSurfaceHeight(x1, z1) + 0.5;
+
+    // Tracer line (fades)
     const geo = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(x0, h0, z0), new THREE.Vector3(x1, h1, z1)
     ]);
-    const mat = new THREE.LineBasicMaterial({ color: 0xffee44, transparent: true, opacity: 0.8 });
+    const mat = new THREE.LineBasicMaterial({ color: 0xffee44, transparent: true, opacity: 0.9 });
     const line = new THREE.Line(geo, mat);
     this.scene.add(line);
-    setTimeout(() => { this.scene.remove(line); geo.dispose(); mat.dispose(); }, 150);
+    const lineStart = performance.now();
+    const lineFade = (now) => {
+      const t = (now - lineStart) / 200;
+      mat.opacity = Math.max(0, 0.9 - t);
+      if (t > 1) { this.scene.remove(line); geo.dispose(); mat.dispose(); return; }
+      requestAnimationFrame(lineFade);
+    };
+    requestAnimationFrame(lineFade);
+
+    // Impact sparks at target
+    const impactPos = new THREE.Vector3(x1, h1, z1);
+    for (let i = 0; i < 8; i++) {
+      const sGeo = new THREE.SphereGeometry(0.025, 4, 4);
+      const sColor = [0xffcc33, 0xff8800, 0xffee66, 0xff6600][i % 4];
+      const sMat = new THREE.MeshBasicMaterial({ color: sColor, transparent: true, opacity: 1 });
+      const spark = new THREE.Mesh(sGeo, sMat);
+      spark.position.copy(impactPos);
+      this.scene.add(spark);
+      const vx = (Math.random() - 0.5) * 4;
+      const vy = Math.random() * 3 + 1;
+      const vz = (Math.random() - 0.5) * 4;
+      const st = performance.now();
+      const tick = (now) => {
+        const t = (now - st) / 1000;
+        spark.position.x = impactPos.x + vx * t;
+        spark.position.y = impactPos.y + vy * t - 6 * t * t;
+        spark.position.z = impactPos.z + vz * t;
+        sMat.opacity = Math.max(0, 1 - t * 3);
+        if (t > 0.4) { this.scene.remove(spark); sGeo.dispose(); sMat.dispose(); return; }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+
+    // Impact flash
+    const impFlashGeo = new THREE.SphereGeometry(0.1, 6, 6);
+    const impFlashMat = new THREE.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.8 });
+    const impFlash = new THREE.Mesh(impFlashGeo, impFlashMat);
+    impFlash.position.copy(impactPos);
+    this.scene.add(impFlash);
+    const impLight = new THREE.PointLight(0xff8833, 2, 3);
+    impLight.position.copy(impactPos);
+    this.scene.add(impLight);
+    const impStart = performance.now();
+    const impFade = (now) => {
+      const t = (now - impStart) / 150;
+      impFlashMat.opacity = Math.max(0, 0.8 - t);
+      impFlash.scale.setScalar(1 + t * 3);
+      impLight.intensity = Math.max(0, 2 - t * 4);
+      if (t > 1) {
+        this.scene.remove(impFlash); impFlashGeo.dispose(); impFlashMat.dispose();
+        this.scene.remove(impLight); impLight.dispose();
+        return;
+      }
+      requestAnimationFrame(impFade);
+    };
+    requestAnimationFrame(impFade);
   },
 
   _destroyCrate(tx, sy, tz) {
@@ -3017,6 +3160,110 @@ const Game = {
     }
 
     this._showFloater(new THREE.Vector3(tx, baseH + 1, tz), 'Destroyed!', '#fa4');
+  },
+
+  // ---- Fire particle system ----
+  _fires: [],
+
+  spawnFire(x, z, opts = {}) {
+    const h = this.world ? this.world.getSurfaceHeight(x, z) : 0;
+    const baseY = h + (opts.yOffset || 0.3);
+    const intensity = opts.intensity || 1;
+    const radius = opts.radius || 0.3;
+
+    // Point light for fire glow
+    const light = new THREE.PointLight(0xff6622, intensity * 2, 4);
+    light.position.set(x, baseY + 0.5, z);
+    this.scene.add(light);
+
+    const fire = { x, z, baseY, intensity, radius, light, particles: [], alive: true };
+    this._fires.push(fire);
+    return fire;
+  },
+
+  _updateFires() {
+    for (const fire of this._fires) {
+      if (!fire.alive) continue;
+
+      // Flicker the light
+      fire.light.intensity = fire.intensity * (1.5 + Math.sin(performance.now() * 0.01) * 0.5 + Math.random() * 0.5);
+      fire.light.color.setHex(Math.random() > 0.3 ? 0xff6622 : 0xff4400);
+
+      // Spawn new particles
+      if (Math.random() < 0.4 * fire.intensity) {
+        const pGeo = new THREE.SphereGeometry(0.04 + Math.random() * 0.06, 4, 4);
+        const hue = Math.random();
+        let pColor;
+        if (hue < 0.3) pColor = 0xff2200;       // deep red
+        else if (hue < 0.6) pColor = 0xff6600;   // orange
+        else if (hue < 0.85) pColor = 0xffaa22;  // yellow-orange
+        else pColor = 0xffdd44;                    // bright yellow
+
+        const pMat = new THREE.MeshBasicMaterial({ color: pColor, transparent: true, opacity: 0.9 });
+        const p = new THREE.Mesh(pGeo, pMat);
+        p.position.set(
+          fire.x + (Math.random() - 0.5) * fire.radius,
+          fire.baseY,
+          fire.z + (Math.random() - 0.5) * fire.radius
+        );
+        this.scene.add(p);
+        fire.particles.push({
+          mesh: p, geo: pGeo, mat: pMat,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: 1.5 + Math.random() * 1.5,
+          vz: (Math.random() - 0.5) * 0.3,
+          life: 0, maxLife: 0.4 + Math.random() * 0.4,
+        });
+      }
+
+      // Spawn occasional smoke
+      if (Math.random() < 0.15) {
+        const sGeo = new THREE.SphereGeometry(0.08 + Math.random() * 0.1, 4, 4);
+        const gray = 0.15 + Math.random() * 0.15;
+        const sMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(gray, gray, gray),
+          transparent: true, opacity: 0.4,
+        });
+        const s = new THREE.Mesh(sGeo, sMat);
+        s.position.set(
+          fire.x + (Math.random() - 0.5) * fire.radius * 0.5,
+          fire.baseY + 0.5 + Math.random() * 0.3,
+          fire.z + (Math.random() - 0.5) * fire.radius * 0.5
+        );
+        this.scene.add(s);
+        fire.particles.push({
+          mesh: s, geo: sGeo, mat: sMat,
+          vx: (Math.random() - 0.5) * 0.2,
+          vy: 0.8 + Math.random() * 0.5,
+          vz: (Math.random() - 0.5) * 0.2,
+          life: 0, maxLife: 1.0 + Math.random() * 0.5,
+          isSmoke: true,
+        });
+      }
+
+      // Update existing particles
+      const dt = 0.016;
+      for (let i = fire.particles.length - 1; i >= 0; i--) {
+        const p = fire.particles[i];
+        p.life += dt;
+        const t = p.life / p.maxLife;
+        p.mesh.position.x += p.vx * dt;
+        p.mesh.position.y += p.vy * dt;
+        p.mesh.position.z += p.vz * dt;
+        if (p.isSmoke) {
+          p.mesh.scale.setScalar(1 + t * 2);
+          p.mat.opacity = Math.max(0, 0.4 * (1 - t));
+        } else {
+          p.mesh.scale.setScalar(1 - t * 0.5);
+          p.mat.opacity = Math.max(0, 0.9 * (1 - t * t));
+        }
+        if (p.life >= p.maxLife) {
+          this.scene.remove(p.mesh);
+          p.geo.dispose(); p.mat.dispose();
+          fire.particles.splice(i, 1);
+        }
+      }
+    }
   },
 
   // ---- Interact with adjacent tile (open metal crate) ----
@@ -3428,8 +3675,119 @@ const Game = {
     }
   },
 
+  // ── Touch input ──────────────────────────────────────────────
+  // 1 finger drag  = pan camera
+  // 2 finger up/down = zoom
+  // 2 finger left/right = rotate camera
+  // tap = click (select/move/shoot/interact)
+  _initTouch() {
+    const el = this.renderer.domElement;
+    const t = { fingers: 0, startX: 0, startY: 0, lastX: 0, lastY: 0,
+                startDist: 0, startCX: 0, startCY: 0, lastCX: 0, lastCY: 0,
+                moved: false, rotated: false };
+
+    const fingerDist = (touches) => {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+    const fingerCenter = (touches) => ({
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2,
+    });
+
+    el.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      t.fingers = e.touches.length;
+
+      if (t.fingers === 1) {
+        t.startX = t.lastX = e.touches[0].clientX;
+        t.startY = t.lastY = e.touches[0].clientY;
+        t.moved = false;
+        // Update hover/raycast at touch position
+        this._onMouseMove({ clientX: t.startX, clientY: t.startY });
+      } else if (t.fingers === 2) {
+        t.startDist = fingerDist(e.touches);
+        const c = fingerCenter(e.touches);
+        t.startCX = t.lastCX = c.x;
+        t.startCY = t.lastCY = c.y;
+        t.rotated = false;
+        t.moved = true; // 2-finger always counts as "moved" (not a tap)
+      }
+    }, { passive: false });
+
+    el.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+
+      if (t.fingers === 1 && e.touches.length === 1) {
+        // ── 1-finger drag: pan ──
+        const cx = e.touches[0].clientX;
+        const cy = e.touches[0].clientY;
+        const dx = cx - t.lastX;
+        const dy = cy - t.lastY;
+        if (Math.abs(cx - t.startX) > 5 || Math.abs(cy - t.startY) > 5) t.moved = true;
+
+        if (t.moved) {
+          const ctrl = this.cameraCtrl;
+          const panSpeed = ctrl.distance * 0.003;
+          const angle = ctrl.currentAngle;
+          ctrl.target.x -= dx * Math.cos(angle) * panSpeed + dy * Math.sin(angle) * panSpeed;
+          ctrl.target.z -= -dx * Math.sin(angle) * panSpeed + dy * Math.cos(angle) * panSpeed;
+          ctrl.updateCamera();
+        }
+        t.lastX = cx;
+        t.lastY = cy;
+
+      } else if (t.fingers === 2 && e.touches.length === 2) {
+        // ── 2-finger: zoom (pinch / up-down) + rotate (left-right) ──
+        const dist = fingerDist(e.touches);
+        const c = fingerCenter(e.touches);
+        const ctrl = this.cameraCtrl;
+
+        // Zoom: change in distance between fingers OR vertical movement of center
+        const dDist = dist - t.startDist;
+        const dCY = c.y - t.lastCY;
+        // Use pinch distance for zoom
+        const zoomFactor = 1 - (dist - t.startDist) / t.startDist * 0.5;
+        ctrl.distance = Math.max(ctrl.minDist, Math.min(ctrl.maxDist, ctrl.distance * (1 - dCY * 0.005)));
+
+        // Rotate: horizontal movement of center
+        const dCX = c.x - t.lastCX;
+        if (Math.abs(dCX) > 2 && !t.rotated) {
+          // Accumulate horizontal delta, trigger rotation at threshold
+          const totalDX = c.x - t.startCX;
+          if (Math.abs(totalDX) > 40) {
+            ctrl.rotate(totalDX > 0 ? 1 : -1);
+            t.rotated = true;
+          }
+        }
+
+        ctrl.updateCamera();
+        t.lastCX = c.x;
+        t.lastCY = c.y;
+        t.startDist = dist;
+      }
+    }, { passive: false });
+
+    el.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      // If it was a single-finger tap (no drag), treat as click
+      if (t.fingers === 1 && !t.moved) {
+        this._handleClick();
+      }
+      // Reset when all fingers lifted
+      if (e.touches.length === 0) {
+        t.fingers = 0;
+        t.rotated = false;
+      } else {
+        t.fingers = e.touches.length;
+      }
+    }, { passive: false });
+  },
+
   _handleClick() {
     if (!this.hoveredTile || this.phase !== 'player') return;
+    if (MP.active && !MP.myTurnActive) return; // waiting for other players
     const { x, z } = this.hoveredTile;
 
     // Check if clicking on a character
@@ -3502,6 +3860,9 @@ const Game = {
       const fromH = this.world.getSurfaceHeight(from.x, from.z) + 0.55;
       const toH = this.world.getSurfaceHeight(to.x, to.z) + 0.55;
       const startTime = performance.now();
+
+      // Face movement direction
+      char.faceToward(to.x, to.z);
 
       const tick = (now) => {
         const t = Math.min((now - startTime) / stepDuration, 1);
@@ -3598,6 +3959,17 @@ const Game = {
     this.lootedCrates = new Set();
     this.selectedChar = null;
     this.phase = 'player';
+    // Clear fires
+    for (const fire of this._fires) {
+      fire.alive = false;
+      this.scene.remove(fire.light);
+      fire.light.dispose();
+      for (const p of fire.particles) {
+        this.scene.remove(p.mesh);
+        p.geo.dispose(); p.mat.dispose();
+      }
+    }
+    this._fires = [];
   }
 };
 
@@ -3639,16 +4011,19 @@ const MP = {
 
   // ── Match lifecycle ───────────────────────────────────────
   async createMatch(playerName, matchName) {
+    console.log(`[MP] Creating match "${matchName}" as "${playerName}"...`);
     const res = await this.api('matches.php?action=create', 'POST', { playerName, matchName });
     this.matchToken = res.matchToken;
     this.playerToken = res.playerToken;
     this.playerIdx = res.playerIdx;
     this.isHost = true;
     this.active = true;
+    console.log(`[MP] Match created — token: ${res.matchToken}, player idx: ${res.playerIdx}`);
     return res;
   },
 
   async joinMatch(matchToken, playerName) {
+    console.log(`[MP] Joining match ${matchToken} as "${playerName}"...`);
     const res = await this.api('matches.php?action=join', 'POST', { matchToken, playerName });
     this.matchToken = matchToken;
     this.playerToken = res.playerToken;
@@ -3656,6 +4031,7 @@ const MP = {
     this.isHost = false;
     this.active = true;
     this.players = res.players;
+    console.log(`[MP] Joined — player idx: ${res.playerIdx}, ${res.players.length} players in lobby`);
     return res;
   },
 
@@ -3664,11 +4040,14 @@ const MP = {
   },
 
   async startMatch(setupActions) {
-    return await this.api('matches.php?action=start', 'POST', {
+    console.log(`[MP] Starting match with ${setupActions.length} setup actions...`);
+    const res = await this.api('matches.php?action=start', 'POST', {
       matchToken: this.matchToken,
       playerToken: this.playerToken,
       setupActions,
     });
+    console.log('[MP] Match started!');
+    return res;
   },
 
   // ── Turn flow ─────────────────────────────────────────────
@@ -3686,11 +4065,13 @@ const MP = {
       data: { playerIdx: this.playerIdx, apLeft: char ? char.ap : 0, hpLeft: char ? char.hp : 0 }
     });
 
+    console.log(`[MP] Submitting turn — ${this.pendingActions.length} actions`);
     const res = await this.api('turns.php?action=submit', 'POST', {
       matchToken: this.matchToken,
       playerToken: this.playerToken,
       actions: this.pendingActions,
     });
+    console.log('[MP] Turn submitted, waiting for other players...');
 
     this.pendingActions = [];
     this.myTurnActive = false;
@@ -3721,15 +4102,21 @@ const MP = {
         const otherActions = res.actions.filter(a => a.player_idx !== this.playerIdx && a.player_idx !== null);
 
         if (otherActions.length > 0) {
-          this.stopPolling();
-          await this.replayActions(otherActions);
+          this._pendingReplay = (this._pendingReplay || []).concat(otherActions);
         }
       }
 
       // Check if it's our turn
       if (res.yourTurn && !this.myTurnActive) {
+        console.log('[MP] It\'s our turn!');
         this.stopPolling();
-        this._beginMyTurn();
+        if (this._pendingReplay && this._pendingReplay.length > 0) {
+          // Actions to replay — show Ready button first
+          this._showReady();
+        } else {
+          // No replay needed (e.g. we're first player) — go straight in
+          this._beginMyTurn();
+        }
       }
 
       // Check if match ended
@@ -3744,32 +4131,61 @@ const MP = {
 
   startPolling() {
     this.stopPolling();
+    this._pollVisHandler = () => {
+      if (!document.hidden && this.pollTimer) {
+        console.log('[MP] Tab visible, polling game...');
+        this.poll();
+      }
+    };
+    document.addEventListener('visibilitychange', this._pollVisHandler);
     this.pollTimer = setInterval(() => this.poll(), 2000);
   },
 
   stopPolling() {
     if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+    if (this._pollVisHandler) {
+      document.removeEventListener('visibilitychange', this._pollVisHandler);
+      this._pollVisHandler = null;
+    }
   },
 
   // ── Lobby polling ─────────────────────────────────────────
   startLobbyPoll() {
     this.stopLobbyPoll();
-    this.lobbyPollTimer = setInterval(async () => {
+    // Immediate poll when tab becomes visible again (browsers throttle background intervals)
+    this._lobbyVisHandler = () => {
+      if (!document.hidden && this.lobbyPollTimer) {
+        console.log('[MP] Tab visible, polling lobby...');
+        this._lobbyPollOnce();
+      }
+    };
+    document.addEventListener('visibilitychange', this._lobbyVisHandler);
+    this.lobbyPollTimer = setInterval(() => this._lobbyPollOnce(), 2000);
+  },
+
+  async _lobbyPollOnce() {
       try {
         const status = await this.getStatus();
+        if (status.players.length !== this.players.length) {
+          console.log(`[MP] Lobby update: ${status.players.length} players — ${status.players.map(p => p.player_name).join(', ')}`);
+        }
         this.players = status.players;
         this._renderLobby();
         // If match went active, non-host should enter game
         if (status.status === 'active' && !this.isHost) {
+          console.log('[MP] Match started by host, entering game...');
           this.stopLobbyPoll();
           await this._enterMultiplayerGame();
         }
       } catch (e) { console.warn('Lobby poll error:', e); }
-    }, 2000);
   },
 
   stopLobbyPoll() {
     if (this.lobbyPollTimer) { clearInterval(this.lobbyPollTimer); this.lobbyPollTimer = null; }
+    if (this._lobbyVisHandler) {
+      document.removeEventListener('visibilitychange', this._lobbyVisHandler);
+      this._lobbyVisHandler = null;
+    }
   },
 
   // ── Replay engine ─────────────────────────────────────────
@@ -3785,12 +4201,12 @@ const MP = {
         const banner = document.getElementById('turn-indicator');
         banner.textContent = `${pName ? pName.player_name : 'Player ' + currentPlayer}'s Turn`;
         banner.classList.add('show');
-        await this._delay(800);
+        await this._delay(1500);
         banner.classList.remove('show');
-        await this._delay(300);
+        await this._delay(500);
       }
       await this._replayOne(action);
-      await this._delay(400);
+      await this._delay(800);
     }
 
     Game.isAnimating = false;
@@ -3815,12 +4231,13 @@ const MP = {
           };
           Game.isAnimating = true;
           let step = 1;
-          const stepDuration = 120;
+          const stepDuration = 250; // slower replay movement
           const doStep = () => {
             if (step >= path.length) { origFinish(); return; }
             const from = path[step - 1], to = path[step];
             const fromH = Game.world.getSurfaceHeight(from.x, from.z) + 0.55;
             const toH = Game.world.getSurfaceHeight(to.x, to.z) + 0.55;
+            char.faceToward(to.x, to.z);
             const startTime = performance.now();
             const tick = (now) => {
               const t = Math.min((now - startTime) / stepDuration, 1);
@@ -3849,6 +4266,7 @@ const MP = {
 
       case 'SHOOT': {
         if (!char) break;
+        char.faceToward(action_data.targetX, action_data.targetZ);
         Game._muzzleFlash(char);
         Game._shotLine(char.x, char.z, action_data.targetX, action_data.targetZ);
         // Apply damage/destruction
@@ -3875,7 +4293,7 @@ const MP = {
           const def = char.getEquippedDef();
           if (def) char.getEquippedWeapon().currentAmmo -= def.burst;
         }
-        await this._delay(300);
+        await this._delay(600);
         break;
       }
 
@@ -3936,6 +4354,12 @@ const MP = {
         break;
       }
 
+      case 'SPAWN_FIRE': {
+        const d = action_data;
+        Game.spawnFire(d.x, d.z, { intensity: d.intensity || 1, radius: d.radius || 0.3, yOffset: d.yOffset || 0.3 });
+        break;
+      }
+
       case 'SPAWN_CHAR': {
         const d = action_data;
         const ch = new Character(d.name, d.classId, d.x, d.z, Game.world);
@@ -3961,9 +4385,9 @@ const MP = {
   // ── Test map generator ────────────────────────────────────
   generateTestMap(playerCount) {
     const actions = [];
-    const SIZE = 16;
+    const SIZE = 20;
 
-    // Ground tiles — flat grass
+    // Ground tiles — mixed grass and dirt with variety
     for (let x = 0; x < SIZE; x++) {
       for (let z = 0; z < SIZE; z++) {
         const n = Math.sin(x * 2.5 + 0.1) * Math.cos(z * 2.5 + 0.1) * 0.5;
@@ -3976,61 +4400,148 @@ const MP = {
       }
     }
 
-    // Concrete path through middle
-    for (let x = 0; x < SIZE; x++) {
-      for (let dz = 7; dz <= 8; dz++) {
-        actions.push({ type: 'PLACE_TILE', data: { x, y: 0, z: dz, tileType: 'concrete', h: 2, color: '#888888' } });
+    // Roads — cross-shaped
+    for (let i = 0; i < SIZE; i++) {
+      // Horizontal road
+      for (let dz = 9; dz <= 10; dz++) {
+        actions.push({ type: 'PLACE_TILE', data: { x: i, y: 0, z: dz, tileType: 'road', h: 2, color: '#666666' } });
+      }
+      // Vertical road
+      for (let dx = 9; dx <= 10; dx++) {
+        actions.push({ type: 'PLACE_TILE', data: { x: dx, y: 0, z: i, tileType: 'road', h: 2, color: '#666666' } });
+      }
+    }
+    // Pavement alongside roads
+    for (let i = 0; i < SIZE; i++) {
+      for (const dz of [8, 11]) {
+        actions.push({ type: 'PLACE_TILE', data: { x: i, y: 0, z: dz, tileType: 'pavement', h: 2, color: '#999999' } });
+      }
+      for (const dx of [8, 11]) {
+        actions.push({ type: 'PLACE_TILE', data: { x: dx, y: 0, z: i, tileType: 'pavement', h: 2, color: '#999999' } });
       }
     }
 
-    // Wall formations — cover corridors
-    const walls = [
-      // Left building outline
-      [3,3],[4,3],[5,3],[5,4],[5,5],[3,5],[4,5],[3,4],
-      // Right structure
-      [10,10],[11,10],[12,10],[12,11],[12,12],[10,12],[11,12],[10,11],
-      // Central cover
-      [7,6],[8,6],[7,9],[8,9],
+    // ── Buildings ──────────────────────────────────────────────
+    // NW building (L-shaped)
+    const nwWalls = [
+      [2,2],[3,2],[4,2],[5,2],[6,2],
+      [2,3],[2,4],[2,5],[2,6],
+      [6,3],[6,4],
+      [4,6],[5,6],[6,6],
+      [4,4],[4,5], // interior wall
     ];
-    for (const [wx, wz] of walls) {
+    for (const [wx, wz] of nwWalls) {
       actions.push({ type: 'PLACE_OBJECT', data: { x: wx, y: 1, z: wz, objType: 'wall', h: 3, color: '#776655' } });
     }
 
-    // Low walls for partial cover
-    const lowWalls = [[6,4],[6,5],[9,10],[9,11]];
-    for (const [wx, wz] of lowWalls) {
-      actions.push({ type: 'PLACE_OBJECT', data: { x: wx, y: 1, z: wz, objType: 'wall_low', h: 1, color: '#887766' } });
+    // SE building (square with gap)
+    const seWalls = [
+      [13,13],[14,13],[15,13],[16,13],[17,13],
+      [13,14],[13,15],[13,16],[13,17],
+      [17,14],[17,15],[17,16],[17,17],
+      [14,17],[15,17],[16,17],
+    ];
+    for (const [wx, wz] of seWalls) {
+      actions.push({ type: 'PLACE_OBJECT', data: { x: wx, y: 1, z: wz, objType: 'wall', h: 3, color: '#665544' } });
     }
 
-    // Wooden crates (destructible)
-    const woodCrates = [[4,7],[11,8],[7,12]];
+    // NE ruin (damaged walls)
+    const neWalls = [[14,2],[15,2],[16,2],[14,3],[16,4],[14,5],[15,5],[16,5]];
+    for (const [wx, wz] of neWalls) {
+      const damaged = Math.random() > 0.4;
+      actions.push({ type: 'PLACE_OBJECT', data: { x: wx, y: 1, z: wz, objType: damaged ? 'wall_damaged' : 'wall', h: damaged ? 2 : 3, color: '#887766' } });
+    }
+
+    // SW structure (low walls + sandbags, military outpost)
+    const swLow = [[3,14],[4,14],[5,14],[3,15],[5,16],[3,17],[4,17],[5,17]];
+    for (const [wx, wz] of swLow) {
+      actions.push({ type: 'PLACE_OBJECT', data: { x: wx, y: 1, z: wz, objType: 'wall_low', h: 1, color: '#887766' } });
+    }
+    const sandbags = [[4,13],[6,15],[6,16],[2,16]];
+    for (const [sx, sz] of sandbags) {
+      actions.push({ type: 'PLACE_OBJECT', data: { x: sx, y: 1, z: sz, objType: 'sandbag', h: 1, color: '#8a7a5a' } });
+    }
+
+    // ── Cover objects in streets ──────────────────────────────
+    // Central cover near crossroads
+    const centralCover = [[7,9],[7,10],[12,9],[12,10]];
+    for (const [cx, cz] of centralCover) {
+      actions.push({ type: 'PLACE_OBJECT', data: { x: cx, y: 1, z: cz, objType: 'wall_low', h: 1, color: '#777777' } });
+    }
+
+    // ── Destructible crates (lots!) ───────────────────────────
+    const woodCrates = [[3,3],[5,4],[15,3],[15,14],[4,15],[16,16],[8,5],[11,14],[7,12],[12,7]];
     for (const [cx, cz] of woodCrates) {
       actions.push({ type: 'PLACE_OBJECT', data: { x: cx, y: 1, z: cz, objType: 'crate_wood', h: 1, color: '#8b6914' } });
     }
 
     // Metal crates (lootable)
-    const metalCrates = [[4,4],[11,11],[8,2]];
+    const metalCrates = [[4,3],[14,14],[16,15],[3,16],[15,4],[10,5]];
     for (const [cx, cz] of metalCrates) {
       actions.push({ type: 'PLACE_OBJECT', data: { x: cx, y: 1, z: cz, objType: 'crate_metal', h: 1, color: '#556677' } });
     }
 
-    // Barrels
-    const barrels = [[2,8],[13,7],[9,3]];
+    // ── Barrels (some will be on fire) ────────────────────────
+    const barrels = [[2,9],[17,10],[6,7],[13,12],[8,3],[11,16],[1,12],[18,7]];
     for (const [bx, bz] of barrels) {
       actions.push({ type: 'PLACE_OBJECT', data: { x: bx, y: 1, z: bz, objType: 'barrel', h: 1, color: '#445544' } });
     }
 
-    // Trees for scenery
-    const trees = [[0,0],[15,0],[0,15],[15,15],[1,13],[14,2]];
+    // ── Rubble piles ──────────────────────────────────────────
+    const rubble = [[16,3],[14,4],[7,13],[6,14],[12,6]];
+    for (const [rx, rz] of rubble) {
+      actions.push({ type: 'PLACE_OBJECT', data: { x: rx, y: 1, z: rz, objType: 'rubble', h: 1, color: '#665544' } });
+    }
+
+    // ── Vehicles ──────────────────────────────────────────────
+    // Car on horizontal road
+    actions.push({ type: 'PLACE_OBJECT', data: { x: 5, y: 1, z: 9, objType: 'car', h: 1, color: '#3a5577' } });
+    // Dumpster near SE building
+    actions.push({ type: 'PLACE_OBJECT', data: { x: 12, y: 1, z: 17, objType: 'dumpster', h: 2, color: '#2a4a2a' } });
+
+    // ── Street lamps ──────────────────────────────────────────
+    const lamps = [[0,9],[0,10],[19,9],[19,10],[9,0],[10,0],[9,19],[10,19]];
+    for (const [lx, lz] of lamps) {
+      actions.push({ type: 'PLACE_OBJECT', data: { x: lx, y: 1, z: lz, objType: 'street_lamp', h: 5, color: '#555558' } });
+    }
+
+    // ── Trees & vegetation ────────────────────────────────────
+    const trees = [[0,0],[19,0],[0,19],[19,19],[1,7],[18,12],[7,1],[12,18],[0,5],[19,14]];
     for (const [tx, tz] of trees) {
       actions.push({ type: 'PLACE_OBJECT', data: { x: tx, y: 1, z: tz, objType: 'tree', h: 3, color: '#2a5a2a' } });
     }
+    const bushes = [[1,6],[18,13],[7,0],[12,19],[0,4],[19,15],[6,1],[13,18]];
+    for (const [bx, bz] of bushes) {
+      actions.push({ type: 'PLACE_OBJECT', data: { x: bx, y: 1, z: bz, objType: 'bush', h: 2, color: '#1a4a1a' } });
+    }
+
+    // ── Fences ────────────────────────────────────────────────
+    for (let z = 2; z <= 6; z++) {
+      actions.push({ type: 'PLACE_OBJECT', data: { x: 7, y: 1, z, objType: 'fence', h: 1, color: '#5a4a32' } });
+    }
+    for (let z = 13; z <= 17; z++) {
+      actions.push({ type: 'PLACE_OBJECT', data: { x: 12, y: 1, z, objType: 'fence', h: 1, color: '#5a4a32' } });
+    }
+
+    // ── Fires ──────────────────────────────────────────────────
+    // Barrel fires
+    const barrelFires = [[2,9],[13,12],[18,7]];
+    for (const [fx, fz] of barrelFires) {
+      actions.push({ type: 'SPAWN_FIRE', data: { x: fx, z: fz, intensity: 1.2, radius: 0.25, yOffset: 0.8 } });
+    }
+    // Ground fires (ruins, debris)
+    const groundFires = [[16,3],[14,4]];
+    for (const [fx, fz] of groundFires) {
+      actions.push({ type: 'SPAWN_FIRE', data: { x: fx, z: fz, intensity: 0.8, radius: 0.4, yOffset: 0.1 } });
+    }
+    // Big fire in NE ruins
+    actions.push({ type: 'SPAWN_FIRE', data: { x: 15, z: 3, intensity: 1.8, radius: 0.5, yOffset: 0.2 } });
 
     // Player spawns at opposite corners
     const spawns = [
-      { x: 1, z: 1 },   // Player 0
-      { x: 14, z: 14 },  // Player 1
-      { x: 1, z: 14 },   // Player 2
+      { x: 1, z: 1 },   // Player 0 (NW)
+      { x: 18, z: 18 },  // Player 1 (SE)
+      { x: 18, z: 1 },   // Player 2 (NE)
     ];
     for (let i = 0; i < playerCount; i++) {
       const sp = spawns[i % spawns.length];
@@ -4092,11 +4603,31 @@ const MP = {
     this.players = status.players;
 
     if (status.currentPlayerIdx === this.playerIdx) {
+      // First entry — no replay to watch, go straight in
       this._beginMyTurn();
     } else {
       this._setWaiting(true);
       this.startPolling();
     }
+  },
+
+  _showReady() {
+    // Hide waiting banner, show Ready button
+    const waitBanner = document.getElementById('mp-waiting-banner');
+    if (waitBanner) waitBanner.style.display = 'none';
+    document.getElementById('mp-ready-btn').style.display = 'block';
+    console.log('[MP] Replay done — waiting for player to click Ready');
+  },
+
+  async onReady() {
+    document.getElementById('mp-ready-btn').style.display = 'none';
+    // Play back the other players' actions
+    if (this._pendingReplay && this._pendingReplay.length > 0) {
+      console.log(`[MP] Replaying ${this._pendingReplay.length} actions...`);
+      await this.replayActions(this._pendingReplay);
+      this._pendingReplay = [];
+    }
+    this._beginMyTurn();
   },
 
   _beginMyTurn() {
@@ -4152,6 +4683,8 @@ const MP = {
       const status = await this.getStatus();
       this.players = status.players;
       this.matchName = status.matchName || matchName;
+      this._pushUrl();
+      this._saveToHistory();
       // Show lobby
       document.getElementById('mp-menu').style.display = 'none';
       document.getElementById('mp-lobby').style.display = 'block';
@@ -4172,6 +4705,8 @@ const MP = {
     try {
       this._uiJoinStatus('Joining...');
       await this.joinMatch(token, name);
+      this._pushUrl();
+      this._saveToHistory();
       // Show lobby
       document.getElementById('mp-join').style.display = 'none';
       document.getElementById('mp-lobby').style.display = 'block';
@@ -4220,6 +4755,10 @@ const MP = {
     document.getElementById('mp-join').style.display = 'none';
     document.getElementById('mp-lobby').style.display = 'none';
     this._pendingJoinToken = null;
+    // Clean URL
+    const url = new URL(window.location);
+    url.search = '';
+    window.history.replaceState({}, '', url);
     App.switchTo('main-menu');
   },
 
@@ -4239,17 +4778,52 @@ const MP = {
       }
       list.appendChild(div);
     }
-    // Update share URL
-    const url = `${window.location.origin}${window.location.pathname}?match=${this.matchToken}`;
-    document.getElementById('mp-share-url').textContent = url;
+    // Show invite button for host
+    const invBtn = document.getElementById('mp-invite-btn');
+    if (invBtn) invBtn.style.display = this.isHost ? 'inline-block' : 'none';
   },
 
   copyShareUrl() {
     const url = `${window.location.origin}${window.location.pathname}?match=${this.matchToken}`;
     navigator.clipboard.writeText(url).then(() => {
-      document.getElementById('mp-share-url').textContent = 'Copied!';
-      setTimeout(() => this._renderLobby(), 1500);
+      const btn = document.getElementById('mp-invite-btn');
+      btn.textContent = 'Copied!';
+      console.log(`[MP] Invite link copied: ${url}`);
+      setTimeout(() => { btn.textContent = 'Copy Invite Link'; }, 1500);
     });
+  },
+
+  renderHistory() {
+    const games = this._loadHistory();
+    const panel = document.getElementById('mp-history');
+    const list = document.getElementById('mp-history-list');
+    if (!games.length) { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+    list.innerHTML = '';
+    for (const g of games) {
+      const div = document.createElement('div');
+      div.className = 'mp-history-item';
+      const ago = this._timeAgo(g.updatedAt);
+      div.innerHTML = `<span class="name">${g.matchName || 'Unnamed match'}${g.isHost ? ' <span style="color:#f0c040;font-size:0.7rem">HOST</span>' : ''}</span><span class="meta">${ago}</span>`;
+      div.onclick = () => {
+        this.matchToken = g.matchToken;
+        this.playerToken = g.playerToken;
+        this.active = true;
+        this._pushUrl();
+        this._rejoin();
+      };
+      list.appendChild(div);
+    }
+  },
+
+  _timeAgo(ts) {
+    const mins = Math.floor((Date.now() - ts) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
   },
 
   _uiStatus(msg) {
@@ -4258,6 +4832,39 @@ const MP = {
 
   _delay(ms) {
     return new Promise(r => setTimeout(r, ms));
+  },
+
+  // ── URL & localStorage ─────────────────────────────────────
+  _pushUrl() {
+    const url = new URL(window.location);
+    url.searchParams.set('match', this.matchToken);
+    url.searchParams.set('token', this.playerToken);
+    window.history.replaceState({}, '', url);
+  },
+
+  _saveToHistory() {
+    try {
+      const games = JSON.parse(localStorage.getItem('trek_games') || '[]');
+      // Update or add
+      const idx = games.findIndex(g => g.matchToken === this.matchToken);
+      const entry = {
+        matchToken: this.matchToken,
+        playerToken: this.playerToken,
+        matchName: this.matchName || '',
+        isHost: this.isHost,
+        playerIdx: this.playerIdx,
+        updatedAt: Date.now(),
+      };
+      if (idx >= 0) games[idx] = entry; else games.unshift(entry);
+      // Keep last 20
+      localStorage.setItem('trek_games', JSON.stringify(games.slice(0, 20)));
+    } catch (e) { /* localStorage unavailable */ }
+  },
+
+  _loadHistory() {
+    try {
+      return JSON.parse(localStorage.getItem('trek_games') || '[]');
+    } catch (e) { return []; }
   },
 
   // ── URL parameter check ───────────────────────────────────
@@ -4289,17 +4896,20 @@ const MP = {
 
   async _rejoin() {
     try {
+      console.log('[MP] Rejoining match...');
       const status = await this.getStatus();
       this.players = status.players;
-      // Find our player
-      const me = this.players.find(p => p.player_token === this.playerToken);
-      // We can't see tokens from status, so we need poll to verify
-      // Just try entering the game
+      this.matchName = status.matchName || '';
+
+      // Verify our token and get our player info
       const res = await this.api(
         `turns.php?action=poll&matchToken=${this.matchToken}&playerToken=${this.playerToken}&afterId=0`
       );
       // If we got here, token is valid
-      this.playerIdx = res.actions.length > 0 ? null : 0; // will be set from SPAWN_CHAR
+      this.playerIdx = res.playerIdx;
+      this.isHost = res.isHost;
+      this.active = true;
+      console.log(`[MP] Rejoined as player ${this.playerIdx}, host: ${this.isHost}, status: ${status.status}`);
 
       if (status.status === 'active') {
         await this._enterMultiplayerGame();
@@ -4307,6 +4917,13 @@ const MP = {
         App.switchTo('mp-screen');
         document.getElementById('mp-menu').style.display = 'none';
         document.getElementById('mp-lobby').style.display = 'block';
+        if (this.isHost) {
+          document.getElementById('mp-start-btn').style.display = 'inline-block';
+          document.getElementById('mp-lobby-status').textContent = '';
+        } else {
+          document.getElementById('mp-start-btn').style.display = 'none';
+          document.getElementById('mp-lobby-status').textContent = 'Waiting for host to start...';
+        }
         this._renderLobby();
         this.startLobbyPoll();
       }
