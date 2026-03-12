@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "targets": {
+    "test-book": {
+      "mind": "test-book.mind",
+      "refImageAspect": 0.641738,
+      "overlayScale": 1.55,
+      "physicalWidth": 135,
+      "physicalHeight": 210
+    }
+  }
+}
