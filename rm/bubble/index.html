@@ -1302,14 +1302,18 @@ async function boot() {
     // Transition to pre-game
     gameState = GAME_STATES.PRE_GAME;
 
-    // Resume audio context on first interaction
+    // Resume audio context and start music on first interaction
     document.addEventListener('click', () => {
       if (audioCtx?.state === 'suspended') audioCtx.resume();
+      if (musicOn) bgMusic.play().catch(() => {});
     }, { once: true });
+
+    // Also try starting music immediately (works if autoplay is allowed)
+    if (musicOn) bgMusic.play().catch(() => {});
 
   } catch (e) {
     console.error('[BubblePops] Boot failed:', e);
-    loadingStatus.textContent = `Error: ${e.message}`;
+    loadingStatus.textContent = `Error: ${e?.message || String(e)}`;
     loadingStatus.style.color = '#f44';
   }
 }

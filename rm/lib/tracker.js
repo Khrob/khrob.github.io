@@ -126,7 +126,13 @@ export class MindARTracker extends EventEmitter {
     this.anchor.onTargetFound = () => this.emit('targetFound');
     this.anchor.onTargetLost  = () => this.emit('targetLost');
 
-    await this.mindThree.start();
+    try {
+      await this.mindThree.start();
+    } catch (err) {
+      throw new Error(
+        err?.message || 'MindAR failed to start — check camera permissions and HTTPS'
+      );
+    }
     this.running = true;
 
     // Grab the video element MindAR created (inside sub-container)
