@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bubble Pops — Reset Moves</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a1a; color: #eee;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    overflow: hidden; width: 100vw; height: 100vh;
+  }
+  #ar-container {
+    position: absolute; overflow: hidden; background: #000;
+    transform: scaleX(-1);  /* Mirror the video feed */
+  }
+  #game-canvas {
+    position: absolute;
+    z-index: 50; pointer-events: none;
+  }
+  #loading-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 100; background: #0a0a1a;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    transition: opacity 0.5s;
+  }
+  #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  #loading-overlay h1 { font-size: 3em; color: #e0e0ff; margin-bottom: 10px; }
+  #loading-overlay p { font-size: 1.2em; color: #888; }
+  .loading-spinner {
+    width: 40px; height: 40px; margin-top: 20px;
+    border: 4px solid #333; border-top-color: #88f;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Hide MindAR's scanning/loading UI overlays */
+  .mindar-ui-overlay { display: none !important; }
+
+  #music-toggle {
+    position: fixed; top: 12px; right: 12px; z-index: 200;
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.3);
+    background: rgba(0,0,0,0.5); color: #fff;
+    font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+    transition: background 0.2s;
+  }
+  #music-toggle:hover { background: rgba(60,60,120,0.7); }
+</style>
+</head>
+<body>
+
+<div id="ar-container"></div>
+<canvas id="game-canvas"></canvas>
+<button id="music-toggle" title="Toggle music">&#9835;</button>
+
+<div id="loading-overlay">
+  <h1>Bubble Pops</h1>
+  <p id="loading-status">Loading...</p>
+  <div class="loading-spinner"></div>
+</div>
+
+<!-- TensorFlow.js + MoveNet -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+
+<!-- ES Module importmap -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.147.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.147.0/examples/jsm/",
+    "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js",
+    "mindar-image": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"
+  }
+}
+</script>
+
+<script type="module">
+// ═══════════════════════════════════════════════════════════════════════════
+// ── BUBBLE POPS — Reset Moves ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { MagicMat } from '../lib/magic-mat.js';
+
+// ── Constants ─────────────────────────────────────────────────────────────
+const GAME_STATES = { LOADING: 0, PRE_GAME: 1, PLAYING: 2, POST_GAME: 3 };
+const ELBOW_L = 7, ELBOW_R = 8;
+const WRIST_L = 9, WRIST_R = 10;
+const HAND_EXTEND = 0.35; // extrapolate past wrist toward hand center
+const MIN_KEYPOINT_SCORE = 0.3;
+
+// Bubble sizes (fraction of canvas width so they scale)
+const BUBBLE_LARGE  = 0.09;   // ~86px at 960w
+const BUBBLE_MEDIUM = 0.07;   // ~67px at 960w
+const BUBBLE_SMALL  = 0.06;   // ~58px
+
+const GRAVITY = 0.12;
+const BOUNCE_DAMP = 0.7;
+const WOBBLE_SPEED = 0.04;
+const WOBBLE_AMP = 0.05;  // ±5% radius
+
+// Colors for bubble tinting (hue degrees)
+const BUBBLE_HUES = [0, 30, 60, 120, 180, 210, 260, 300, 330];
+
+// Round config
+const BASE_TIMER = 20;           // seconds for round 1
+const MIN_TIMER = 10;            // minimum timer
+const BASE_LARGE_BUBBLES = 3;
+
+// Ready button
+const READY_HOLD_TIME = 2.0;     // seconds to fill
+const READY_DECAY_RATE = 0.5;    // fraction per second when not held
+
+// Particles
+const PARTICLE_COUNT_POP = 15;
+const PARTICLE_LIFETIME = 0.5;   // seconds
+
+// ── DOM refs ──────────────────────────────────────────────────────────────
+const container = document.getElementById('ar-container');
+const gameCanvas = document.getElementById('game-canvas');
+const ctx = gameCanvas.getContext('2d');
+const loadingOverlay = document.getElementById('loading-overlay');
+const loadingStatus = document.getElementById('loading-status');
+
+// ── Game state ────────────────────────────────────────────────────────────
+let gameState = GAME_STATES.LOADING;
+let mat = null;
+
+// Pre-game
+let readyProgress = 0;  // 0-1
+
+// Playing
+let round = 0;
+let roundTimer = 0;       // seconds remaining
+let roundDuration = 0;    // total seconds for current round
+let bubbles = [];
+let particles = [];
+let totalPopped = 0;
+let gameStartTime = 0;
+let gameEndTime = 0;
+let maxPlayersDetected = 0;
+let roundCleared = false;
+let countdownTimer = 0;   // 3-2-1 countdown
+let countdownActive = false;
+
+// Tracked hands
+let trackedHands = [];    // [{x, y, trail: [{x,y}]}]
+const HAND_TRAIL_LENGTH = 12;
+const HAND_SMOOTH = 0.35;  // 0 = no smoothing, 1 = frozen
+const HAND_COLLISION_RADIUS = 30; // px — extra collision radius on top of bubble hitbox
+
+// Screen shake
+let shakeX = 0, shakeY = 0;
+let shakeMag = 0;
+
+// Assets
+let bubbleBaseImg = null;
+let bubbleShineImg = null;
+let audioCtx = null;
+let popBuffers = [];     // [AudioBuffer, AudioBuffer]
+let bloopBuffer = null;
+
+// Timing
+let lastFrameTime = 0;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── AUDIO SYSTEM ──────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  const loadBuffer = async (url) => {
+    const resp = await fetch(url);
+    const buf = await resp.arrayBuffer();
+    return audioCtx.decodeAudioData(buf);
+  };
+
+  try {
+    const [p1, p2, bl] = await Promise.all([
+      loadBuffer('pop1.ogg'),
+      loadBuffer('pop2.ogg'),
+      loadBuffer('sound-bloop.wav'),
+    ]);
+    popBuffers = [p1, p2];
+    bloopBuffer = bl;
+  } catch (e) {
+    console.warn('[BubblePops] Audio load failed:', e);
+  }
+}
+
+function playPop(size) {
+  if (!audioCtx || popBuffers.length === 0) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  const buffer = popBuffers[Math.random() < 0.5 ? 0 : 1];
+  const source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.playbackRate.value = 0.8 + Math.random() * 0.5; // 0.8-1.3
+
+  const gain = audioCtx.createGain();
+  gain.gain.value = size === 'large' ? 0.8 : size === 'medium' ? 0.5 : 0.3;
+
+  source.connect(gain);
+  gain.connect(audioCtx.destination);
+  source.start();
+}
+
+function playBloop() {
+  if (!audioCtx || !bloopBuffer) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  const source = audioCtx.createBufferSource();
+  source.buffer = bloopBuffer;
+  source.playbackRate.value = 0.9 + Math.random() * 0.2;
+
+  const gain = audioCtx.createGain();
+  gain.gain.value = 0.3;
+
+  source.connect(gain);
+  gain.connect(audioCtx.destination);
+  source.start();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── BACKGROUND MUSIC ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+const bgMusic = new Audio('puredesigngirl__electonic-music.mp3');
+bgMusic.loop = true;
+bgMusic.volume = 0.35;
+let musicOn = true;
+
+const musicBtn = document.getElementById('music-toggle');
+musicBtn.textContent = '\u{1F50A}'; // speaker with sound
+
+musicBtn.addEventListener('click', () => {
+  musicOn = !musicOn;
+  if (musicOn) {
+    // Resume AudioContext if suspended (browser autoplay policy)
+    if (audioCtx?.state === 'suspended') audioCtx.resume();
+    bgMusic.play().catch(() => {});
+    musicBtn.textContent = '\u{1F50A}'; // speaker with sound
+  } else {
+    bgMusic.pause();
+    musicBtn.textContent = '\u{1F507}'; // muted speaker
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── ASSET LOADING ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── BUBBLE CLASS ──────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function createBubble(x, y, size, vx, vy) {
+  const cw = gameCanvas.width;
+  const radiusMap = { large: BUBBLE_LARGE * cw, medium: BUBBLE_MEDIUM * cw, small: BUBBLE_SMALL * cw };
+  return {
+    x, y,
+    vx: vx ?? (Math.random() - 0.5) * 3,
+    vy: vy ?? -(Math.random() * 2 + 1),
+    radius: radiusMap[size] || BUBBLE_MEDIUM * cw,
+    size,
+    hue: BUBBLE_HUES[Math.floor(Math.random() * BUBBLE_HUES.length)],
+    wobblePhase: Math.random() * Math.PI * 2,
+    opacity: 0,       // fade in
+    alive: true,
+    invincibleTimer: 0, // seconds of pop-immunity remaining
+  };
+}
+
+function spawnBubbleWave(count) {
+  const cw = gameCanvas.width;
+  const ch = gameCanvas.height;
+  for (let i = 0; i < count; i++) {
+    const x = cw * 0.15 + Math.random() * cw * 0.7;
+    const y = ch * 0.1 + Math.random() * ch * 0.3;
+    bubbles.push(createBubble(x, y, 'large'));
+  }
+  playBloop();
+}
+
+function updateBubbles(dt) {
+  const cw = gameCanvas.width;
+  const ch = gameCanvas.height;
+
+  for (const b of bubbles) {
+    if (!b.alive) continue;
+
+    // Fade in
+    if (b.opacity < 1) b.opacity = Math.min(1, b.opacity + dt * 4);
+
+    // Tick down invincibility
+    if (b.invincibleTimer > 0) b.invincibleTimer = Math.max(0, b.invincibleTimer - dt);
+
+    // Physics
+    b.vy += GRAVITY;
+    b.x += b.vx;
+    b.y += b.vy;
+
+    // Wobble
+    b.wobblePhase += WOBBLE_SPEED;
+
+    // Bounce off edges
+    if (b.x - b.radius < 0) { b.x = b.radius; b.vx = Math.abs(b.vx) * BOUNCE_DAMP; }
+    if (b.x + b.radius > cw) { b.x = cw - b.radius; b.vx = -Math.abs(b.vx) * BOUNCE_DAMP; }
+    if (b.y - b.radius < 0) { b.y = b.radius; b.vy = Math.abs(b.vy) * BOUNCE_DAMP; }
+    if (b.y + b.radius > ch) { b.y = ch - b.radius; b.vy = -Math.abs(b.vy) * BOUNCE_DAMP - 1.5; }
+
+    // Slight random drift
+    b.vx += (Math.random() - 0.5) * 0.1;
+  }
+
+  bubbles = bubbles.filter(b => b.alive);
+}
+
+function popBubble(bubble, handVx = 0, handVy = 0) {
+  bubble.alive = false;
+  totalPopped++;
+
+  const cfg = getRoundConfig(round);
+
+  // Transfer a fraction of the hand's motion to child bubbles
+  const handInfluence = 0.4;
+  const hvx = handVx * handInfluence;
+  const hvy = handVy * handInfluence;
+
+  // Spawn children (with 0.5s invincibility so they can scatter before being popped)
+  if (bubble.size === 'large') {
+    for (let i = 0; i < cfg.n; i++) {
+      const angle = (Math.PI * 2 / cfg.n) * i + Math.random() * 0.5;
+      const speed = 3 + Math.random() * 2;
+      const child = createBubble(
+        bubble.x, bubble.y, 'medium',
+        Math.cos(angle) * speed + hvx, Math.sin(angle) * speed - 2 + hvy
+      );
+      child.invincibleTimer = 0.5;
+      bubbles.push(child);
+    }
+  } else if (bubble.size === 'medium') {
+    for (let i = 0; i < cfg.m; i++) {
+      const angle = (Math.PI * 2 / cfg.m) * i + Math.random() * 0.5;
+      const speed = 2 + Math.random() * 2;
+      const child = createBubble(
+        bubble.x, bubble.y, 'small',
+        Math.cos(angle) * speed + hvx, Math.sin(angle) * speed - 1.5 + hvy
+      );
+      child.invincibleTimer = 0.5;
+      bubbles.push(child);
+    }
+  }
+
+  // Particles
+  spawnParticles(bubble.x, bubble.y, bubble.radius, bubble.hue);
+
+  // Audio
+  playPop(bubble.size);
+
+  // Screen shake
+  if (bubble.size === 'large') shakeMag = 5;
+  else if (bubble.size === 'medium') shakeMag = 2;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── PARTICLE SYSTEM ───────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function spawnParticles(x, y, radius, hue) {
+  for (let i = 0; i < PARTICLE_COUNT_POP; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 6;
+    const size = 2 + Math.random() * 5;
+    // Mix bubble hue with white highlights
+    const isWhite = Math.random() < 0.3;
+    const color = isWhite
+      ? `hsl(0, 0%, ${80 + Math.random() * 20}%)`
+      : `hsl(${hue + Math.random() * 40 - 20}, 80%, ${60 + Math.random() * 20}%)`;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 2,
+      size,
+      color,
+      life: PARTICLE_LIFETIME,
+      maxLife: PARTICLE_LIFETIME,
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (const p of particles) {
+    p.life -= dt;
+    p.vy += GRAVITY * 0.5;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.size *= 0.97;
+  }
+  particles = particles.filter(p => p.life > 0);
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const alpha = Math.max(0, p.life / p.maxLife);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── BUBBLE RENDERING ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function drawBubbles() {
+  const video = mat?.tracker?.video;
+
+  for (const b of bubbles) {
+    if (!b.alive) continue;
+
+    const wobbleR = b.radius * (1 + Math.sin(b.wobblePhase) * WOBBLE_AMP);
+
+    ctx.save();
+    ctx.globalAlpha = b.opacity;
+
+    // ── Fish-eye distortion: draw magnified video circle behind bubble ──
+    if (video && video.readyState >= 2) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, wobbleR, 0, Math.PI * 2);
+      ctx.clip();
+
+      // Map canvas coords to video coords
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const cw = gameCanvas.width;
+      const ch = gameCanvas.height;
+      const scaleX = vw / cw;
+      const scaleY = vh / ch;
+
+      // Source rect in video coords (slightly smaller = magnification)
+      // X is flipped because the video is mirrored via CSS
+      const mag = 1.2;  // 1.2x magnification
+      const srcW = (wobbleR * 2 * scaleX) / mag;
+      const srcH = (wobbleR * 2 * scaleY) / mag;
+      const srcX = ((cw - b.x) * scaleX) - srcW / 2;
+      const srcY = (b.y * scaleY) - srcH / 2;
+
+      // Clamp source to video bounds
+      const sx = Math.max(0, Math.min(vw - srcW, srcX));
+      const sy = Math.max(0, Math.min(vh - srcH, srcY));
+
+      ctx.drawImage(video,
+        sx, sy, srcW, srcH,
+        b.x - wobbleR, b.y - wobbleR, wobbleR * 2, wobbleR * 2
+      );
+      ctx.restore();
+    }
+
+    // ── Tinted base — draw colour circle, then texture on top ──
+    {
+      ctx.save();
+      ctx.globalAlpha = b.opacity * 0.45;
+      // Solid colour fill
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, wobbleR, 0, Math.PI * 2);
+      ctx.fillStyle = `hsl(${b.hue}, 85%, 55%)`;
+      ctx.fill();
+      ctx.restore();
+    }
+    if (bubbleBaseImg) {
+      ctx.save();
+      ctx.globalAlpha = b.opacity * 0.55;
+      ctx.drawImage(bubbleBaseImg,
+        b.x - wobbleR, b.y - wobbleR, wobbleR * 2, wobbleR * 2
+      );
+      ctx.restore();
+    }
+
+    // ── Shine overlay ──
+    if (bubbleShineImg) {
+      ctx.save();
+      ctx.globalAlpha = b.opacity * 0.7;
+      ctx.drawImage(bubbleShineImg,
+        b.x - wobbleR, b.y - wobbleR, wobbleR * 2, wobbleR * 2
+      );
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── HAND TRACKING & COLLISION ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateTrackedHands() {
+  const poses = mat?.getPoses() || [];
+  const hands = [];
+  const video = mat?.tracker?.video;
+  if (!video) return;
+  const vw = video.videoWidth || 1;
+  const vh = video.videoHeight || 1;
+  const cw = gameCanvas.width;
+  const ch = gameCanvas.height;
+
+  // Use the video element's actual screen rect to map keypoints.
+  // This avoids guessing about MindAR's internal video sizing / object-fit.
+  const vidRect = video.getBoundingClientRect();
+  const canvasRect = gameCanvas.getBoundingClientRect();
+
+  let playerCount = 0;
+
+  for (const pose of poses) {
+    if (!pose.keypoints) continue;
+    playerCount++;
+
+    for (const [elbowIdx, wristIdx] of [[ELBOW_L, WRIST_L], [ELBOW_R, WRIST_R]]) {
+      const wrist = pose.keypoints[wristIdx];
+      if (!wrist || wrist.score < MIN_KEYPOINT_SCORE) continue;
+
+      // Extrapolate past wrist toward hand center using elbow→wrist vector
+      let handX = wrist.x, handY = wrist.y;
+      const elbow = pose.keypoints[elbowIdx];
+      if (elbow && elbow.score >= MIN_KEYPOINT_SCORE) {
+        handX += (wrist.x - elbow.x) * HAND_EXTEND;
+        handY += (wrist.y - elbow.y) * HAND_EXTEND;
+      }
+
+      // Video native coords → video element display coords
+      const dispX = (handX / vw) * vidRect.width;
+      const dispY = (handY / vh) * vidRect.height;
+
+      // Flip X to match CSS scaleX(-1) mirror on ar-container
+      const flippedX = vidRect.width - dispX;
+
+      // Video element screen position → game canvas coords
+      const screenX = vidRect.left + flippedX;
+      const screenY = vidRect.top + dispY;
+      const x = (screenX - canvasRect.left) / canvasRect.width * cw;
+      const y = (screenY - canvasRect.top) / canvasRect.height * ch;
+      hands.push({ x, y, trail: [] });
+    }
+  }
+
+  if (playerCount > maxPlayersDetected) maxPlayersDetected = playerCount;
+
+  // Match to existing tracked hands (simple nearest-neighbor)
+  const newTracked = [];
+  for (const hand of hands) {
+    let bestMatch = null;
+    let bestDist = 100; // max matching distance
+    for (const existing of trackedHands) {
+      if (existing._matched) continue;
+      const d = Math.hypot(hand.x - existing.x, hand.y - existing.y);
+      if (d < bestDist) { bestDist = d; bestMatch = existing; }
+    }
+    if (bestMatch) {
+      bestMatch._matched = true;
+      bestMatch.trail.push({ x: bestMatch.x, y: bestMatch.y });
+      if (bestMatch.trail.length > HAND_TRAIL_LENGTH) bestMatch.trail.shift();
+      // Smooth position (lerp toward raw keypoint)
+      const newX = bestMatch.x + (hand.x - bestMatch.x) * (1 - HAND_SMOOTH);
+      const newY = bestMatch.y + (hand.y - bestMatch.y) * (1 - HAND_SMOOTH);
+      // Track velocity (smoothed)
+      bestMatch.vx = (newX - bestMatch.x) * 0.6 + (bestMatch.vx || 0) * 0.4;
+      bestMatch.vy = (newY - bestMatch.y) * 0.6 + (bestMatch.vy || 0) * 0.4;
+      bestMatch.x = newX;
+      bestMatch.y = newY;
+      newTracked.push(bestMatch);
+    } else {
+      newTracked.push({ x: hand.x, y: hand.y, trail: [], vx: 0, vy: 0 });
+    }
+  }
+
+  // Clean up _matched flags
+  for (const h of trackedHands) delete h._matched;
+  trackedHands = newTracked;
+}
+
+function drawHands() {
+  for (const hand of trackedHands) {
+    const speed = Math.hypot(hand.vx || 0, hand.vy || 0);
+
+    // Trail — smooth curve through trail points with sparkles
+    if (hand.trail.length >= 2) {
+      // Draw connecting trail glow
+      for (let i = 1; i < hand.trail.length; i++) {
+        const prev = hand.trail[i - 1];
+        const curr = hand.trail[i];
+        const frac = (i + 1) / (hand.trail.length + 1);
+        const alpha = frac * 0.35;
+        const r = 4 + frac * 14;
+
+        ctx.beginPath();
+        ctx.arc(curr.x, curr.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 100, ${alpha})`;
+        ctx.fill();
+
+        // Sparkle particles along the trail
+        if (speed > 2 && Math.random() < 0.5) {
+          const sparkX = curr.x + (Math.random() - 0.5) * r * 2;
+          const sparkY = curr.y + (Math.random() - 0.5) * r * 2;
+          const sparkR = 1.5 + Math.random() * 2.5;
+          const sparkA = frac * 0.5 * Math.random();
+          ctx.beginPath();
+          ctx.arc(sparkX, sparkY, sparkR, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 255, 255, ${sparkA})`;
+          ctx.fill();
+        }
+      }
+
+      // Smooth connecting line
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(hand.trail[0].x, hand.trail[0].y);
+      for (let i = 1; i < hand.trail.length; i++) {
+        const prev = hand.trail[i - 1];
+        const curr = hand.trail[i];
+        const mx = (prev.x + curr.x) / 2;
+        const my = (prev.y + curr.y) / 2;
+        ctx.quadraticCurveTo(prev.x, prev.y, mx, my);
+      }
+      ctx.lineTo(hand.x, hand.y);
+      ctx.strokeStyle = 'rgba(255, 230, 80, 0.2)';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Hand cursor — outer glow (larger for bigger collision feel)
+    const glowR = 32 + Math.min(speed * 0.5, 10);
+    const gradient = ctx.createRadialGradient(hand.x, hand.y, 0, hand.x, hand.y, glowR);
+    gradient.addColorStop(0, 'rgba(255, 255, 150, 0.9)');
+    gradient.addColorStop(0.4, 'rgba(255, 200, 50, 0.4)');
+    gradient.addColorStop(0.7, 'rgba(255, 150, 0, 0.1)');
+    gradient.addColorStop(1, 'rgba(255, 150, 0, 0)');
+    ctx.beginPath();
+    ctx.arc(hand.x, hand.y, glowR, 0, Math.PI * 2);
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // Inner bright dot
+    ctx.beginPath();
+    ctx.arc(hand.x, hand.y, 7, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.fill();
+  }
+}
+
+function checkBubbleCollisions() {
+  for (const b of bubbles) {
+    if (!b.alive || b.invincibleTimer > 0) continue;
+    for (const hand of trackedHands) {
+      const dist = Math.hypot(hand.x - b.x, hand.y - b.y);
+      if (dist < b.radius + HAND_COLLISION_RADIUS) {
+        popBubble(b, hand.vx || 0, hand.vy || 0);
+        break;
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── ROUND SYSTEM ──────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function getRoundConfig(r) {
+  const timer = Math.max(MIN_TIMER, BASE_TIMER - (r - 1));
+  const largeBubbles = BASE_LARGE_BUBBLES + (r - 1);
+  const n = Math.min(4, 2 + Math.floor((r - 1) / 2));  // med per large
+  const m = Math.min(4, 2 + Math.floor((r - 1) / 3));  // small per med
+  return { timer, largeBubbles, n, m };
+}
+
+function startRound(r) {
+  round = r;
+  const cfg = getRoundConfig(r);
+  roundDuration = cfg.timer;
+  roundTimer = cfg.timer;
+  roundCleared = false;
+  spawnBubbleWave(cfg.largeBubbles);
+}
+
+function startNextRound() {
+  startRound(round + 1);
+  showRoundFlash(`Round ${round}`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── TIMER BAR ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function drawTimerBar() {
+  if (gameState !== GAME_STATES.PLAYING) return;
+
+  const cw = gameCanvas.width;
+  const ch = gameCanvas.height;
+  const barH = 8;
+  const frac = Math.max(0, roundTimer / roundDuration);
+
+  // Bar shrinks from both sides toward center
+  const barW = cw * frac;
+  const barX = (cw - barW) / 2;
+  const barY = ch - barH - 4;
+
+  // Color: green → yellow → red
+  let color;
+  if (frac > 0.5) color = `hsl(${120 * (frac - 0.5) * 2}, 80%, 50%)`;
+  else if (frac > 0.25) color = `hsl(${60 * (frac - 0.25) * 4}, 80%, 50%)`;
+  else color = `hsl(0, 80%, 50%)`;
+
+  // Pulsing glow when low
+  if (frac < 0.25) {
+    const pulse = 0.5 + Math.sin(performance.now() * 0.01) * 0.5;
+    ctx.shadowColor = 'red';
+    ctx.shadowBlur = 10 + pulse * 10;
+  }
+
+  ctx.fillStyle = color;
+  ctx.fillRect(barX, barY, barW, barH);
+
+  // Background
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  ctx.fillRect(0, barY, cw, barH);
+
+  ctx.shadowBlur = 0;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── HUD ───────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function drawHUD() {
+  if (gameState !== GAME_STATES.PLAYING) return;
+
+  const cw = gameCanvas.width;
+
+  // Round indicator - top left
+  ctx.font = 'bold 24px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.textAlign = 'left';
+  ctx.fillText(`Round ${round}`, 20, 36);
+
+  // Score - top right
+  ctx.textAlign = 'right';
+  ctx.fillText(`${totalPopped}`, cw - 20, 36);
+
+  // Bubble icon next to score
+  ctx.font = '16px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillText('popped', cw - 20, 54);
+
+  // FPS
+  if (mat?.fps > 0) {
+    ctx.font = '12px monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${mat.fps} fps`, 20, 58);
+  }
+
+  ctx.textAlign = 'left';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── PRE-GAME SCREEN ───────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function drawPreGame() {
+  const cw = gameCanvas.width;
+  const ch = gameCanvas.height;
+
+  // Dim overlay
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.fillRect(0, 0, cw, ch);
+
+  // Title
+  ctx.font = 'bold 48px sans-serif';
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.fillText('BUBBLE POPS', cw / 2, ch * 0.25);
+
+  // Subtitle
+  ctx.font = '20px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.fillText('Pop all the bubbles before time runs out!', cw / 2, ch * 0.25 + 40);
+
+  // READY button — big enough for hands to find easily
+  const btnW = Math.min(500, cw * 0.5);
+  const btnH = Math.min(140, ch * 0.18);
+  const btnX = (cw - btnW) / 2;
+  const btnY = ch * 0.35;
+
+  // Button background
+  ctx.fillStyle = 'rgba(40, 40, 80, 0.8)';
+  ctx.strokeStyle = 'rgba(100, 100, 255, 0.6)';
+  ctx.lineWidth = 3;
+  roundRect(ctx, btnX, btnY, btnW, btnH, 16);
+  ctx.fill();
+  ctx.stroke();
+
+  // Progress fill
+  if (readyProgress > 0) {
+    ctx.save();
+    ctx.beginPath();
+    roundRectPath(ctx, btnX, btnY, btnW, btnH, 16);
+    ctx.clip();
+
+    const fillW = btnW * readyProgress;
+    const gradient = ctx.createLinearGradient(btnX, 0, btnX + fillW, 0);
+    gradient.addColorStop(0, 'rgba(50, 200, 50, 0.6)');
+    gradient.addColorStop(1, 'rgba(100, 255, 100, 0.8)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(btnX, btnY, fillW, btnH);
+    ctx.restore();
+  }
+
+  // Button text
+  ctx.font = `bold ${Math.round(btnH * 0.4)}px sans-serif`;
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('READY', cw / 2, btnY + btnH / 2);
+  ctx.textBaseline = 'alphabetic';
+
+  // Instruction
+  ctx.font = '18px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillText('Hold two hands over the button to start', cw / 2, btnY + btnH + 35);
+
+  // Check hand overlap with button
+  let handsOnButton = 0;
+  for (const hand of trackedHands) {
+    if (hand.x > btnX && hand.x < btnX + btnW &&
+        hand.y > btnY && hand.y < btnY + btnH) {
+      handsOnButton++;
+    }
+  }
+
+  return { handsOnButton, btnX, btnY, btnW, btnH };
+}
+
+function updatePreGame(dt) {
+  const result = drawPreGame();
+
+  if (result.handsOnButton >= 2) {
+    readyProgress += dt / READY_HOLD_TIME;
+    if (readyProgress >= 1) {
+      readyProgress = 0;
+      startCountdown();
+    }
+  } else {
+    readyProgress = Math.max(0, readyProgress - dt * READY_DECAY_RATE);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── COUNTDOWN ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function startCountdown() {
+  countdownTimer = 3;
+  countdownActive = true;
+}
+
+function updateCountdown(dt) {
+  const cw = gameCanvas.width;
+  const ch = gameCanvas.height;
+
+  countdownTimer -= dt;
+  const num = Math.ceil(countdownTimer);
+
+  if (countdownTimer <= 0) {
+    countdownActive = false;
+    startGame();
+    return;
+  }
+
+  // Dim overlay
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+  ctx.fillRect(0, 0, cw, ch);
+
+  // Big number
+  const frac = countdownTimer - Math.floor(countdownTimer);
+  const scale = 1 + (1 - frac) * 0.5;
+
+  ctx.save();
+  ctx.translate(cw / 2, ch / 2);
+  ctx.scale(scale, scale);
+  ctx.font = 'bold 120px sans-serif';
+  ctx.fillStyle = `rgba(255, 255, 255, ${frac})`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(num.toString(), 0, 0);
+  ctx.restore();
+
+  ctx.textBaseline = 'alphabetic';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── POST-GAME SCREEN ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function drawPostGame() {
+  const cw = gameCanvas.width;
+  const ch = gameCanvas.height;
+
+  // Dim overlay
+  ctx.fillStyle = 'rgba(0, 0, 20, 0.6)';
+  ctx.fillRect(0, 0, cw, ch);
+
+  // Game Over title
+  ctx.font = 'bold 56px sans-serif';
+  ctx.fillStyle = '#ff4444';
+  ctx.textAlign = 'center';
+  ctx.fillText('GAME OVER', cw / 2, ch * 0.2);
+
+  // Stats
+  const elapsed = (((gameEndTime || performance.now()) - gameStartTime) / 1000).toFixed(1);
+
+  ctx.font = '28px sans-serif';
+  ctx.fillStyle = '#fff';
+  const statsY = ch * 0.35;
+  const lineH = 44;
+
+  ctx.fillText(`Rounds Survived: ${round - 1}`, cw / 2, statsY);
+  ctx.fillText(`Bubbles Popped: ${totalPopped}`, cw / 2, statsY + lineH);
+  ctx.fillText(`Time: ${elapsed}s`, cw / 2, statsY + lineH * 2);
+  ctx.fillText(`Players: ${maxPlayersDetected}`, cw / 2, statsY + lineH * 3);
+
+  // Play Again button — same generous size as READY
+  const btnW = Math.min(500, cw * 0.5);
+  const btnH = Math.min(120, ch * 0.15);
+  const btnX = (cw - btnW) / 2;
+  const btnY = ch * 0.68;
+
+  ctx.fillStyle = 'rgba(40, 40, 80, 0.8)';
+  ctx.strokeStyle = 'rgba(100, 100, 255, 0.6)';
+  ctx.lineWidth = 3;
+  roundRect(ctx, btnX, btnY, btnW, btnH, 16);
+  ctx.fill();
+  ctx.stroke();
+
+  // Progress fill
+  if (readyProgress > 0) {
+    ctx.save();
+    ctx.beginPath();
+    roundRectPath(ctx, btnX, btnY, btnW, btnH, 16);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(50, 200, 50, 0.6)';
+    ctx.fillRect(btnX, btnY, btnW * readyProgress, btnH);
+    ctx.restore();
+  }
+
+  ctx.font = `bold ${Math.round(btnH * 0.35)}px sans-serif`;
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('PLAY AGAIN', cw / 2, btnY + btnH / 2);
+  ctx.textBaseline = 'alphabetic';
+
+  ctx.font = '18px sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fillText('Hold two hands over the button', cw / 2, btnY + btnH + 30);
+
+  // Check hands
+  let handsOnButton = 0;
+  for (const hand of trackedHands) {
+    if (hand.x > btnX && hand.x < btnX + btnW &&
+        hand.y > btnY && hand.y < btnY + btnH) {
+      handsOnButton++;
+    }
+  }
+
+  return { handsOnButton };
+}
+
+function updatePostGame(dt) {
+  const result = drawPostGame();
+
+  if (result.handsOnButton >= 2) {
+    readyProgress += dt / READY_HOLD_TIME;
+    if (readyProgress >= 1) {
+      readyProgress = 0;
+      resetAndGoPreGame();
+    }
+  } else {
+    readyProgress = Math.max(0, readyProgress - dt * READY_DECAY_RATE);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── GAME LOGIC ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function startGame() {
+  gameState = GAME_STATES.PLAYING;
+  round = 0;
+  totalPopped = 0;
+  maxPlayersDetected = 0;
+  bubbles = [];
+  particles = [];
+  gameStartTime = performance.now();
+  startNextRound();
+}
+
+function resetAndGoPreGame() {
+  gameState = GAME_STATES.PRE_GAME;
+  bubbles = [];
+  particles = [];
+  readyProgress = 0;
+  round = 0;
+  totalPopped = 0;
+}
+
+function gameOver() {
+  gameState = GAME_STATES.POST_GAME;
+  readyProgress = 0;
+  gameEndTime = performance.now();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── RENDER UTILITIES ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  roundRectPath(ctx, x, y, w, h, r);
+  ctx.closePath();
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── ROUND TRANSITION FLASH ────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+let roundFlashTimer = 0;
+let roundFlashText = '';
+
+function showRoundFlash(text) {
+  roundFlashText = text;
+  roundFlashTimer = 1.5;
+}
+
+function drawRoundFlash(dt) {
+  if (roundFlashTimer <= 0) return;
+  roundFlashTimer -= dt;
+
+  const cw = gameCanvas.width;
+  const ch = gameCanvas.height;
+  const alpha = Math.min(1, roundFlashTimer * 2);
+  const scale = 1 + (1.5 - roundFlashTimer) * 0.2;
+
+  ctx.save();
+  ctx.translate(cw / 2, ch / 2);
+  ctx.scale(scale, scale);
+  ctx.font = 'bold 64px sans-serif';
+  ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(roundFlashText, 0, 0);
+  ctx.restore();
+  ctx.textBaseline = 'alphabetic';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── MAIN GAME LOOP ────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+function gameLoop(timestamp) {
+  requestAnimationFrame(gameLoop);
+
+  // Delta time
+  const dt = lastFrameTime ? Math.min(0.1, (timestamp - lastFrameTime) / 1000) : 0.016;
+  lastFrameTime = timestamp;
+
+  // Resize playfield to fit video aspect ratio (letterbox/pillarbox)
+  const video = mat?.tracker?.video;
+  if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+    const vAspect = video.videoWidth / video.videoHeight;
+    const ww = window.innerWidth;
+    const wh = window.innerHeight;
+    let pw, ph;
+    if (ww / wh > vAspect) {
+      // Pillarbox — height-limited
+      ph = wh; pw = wh * vAspect;
+    } else {
+      // Letterbox — width-limited
+      pw = ww; ph = ww / vAspect;
+    }
+    const px = (ww - pw) / 2;
+    const py = (wh - ph) / 2;
+
+    container.style.width  = pw + 'px';
+    container.style.height = ph + 'px';
+    container.style.left   = px + 'px';
+    container.style.top    = py + 'px';
+
+    gameCanvas.style.width  = pw + 'px';
+    gameCanvas.style.height = ph + 'px';
+    gameCanvas.style.left   = px + 'px';
+    gameCanvas.style.top    = py + 'px';
+
+    if (gameCanvas.width !== Math.round(pw) || gameCanvas.height !== Math.round(ph)) {
+      gameCanvas.width  = Math.round(pw);
+      gameCanvas.height = Math.round(ph);
+    }
+  } else {
+    // Fallback before video is ready
+    if (gameCanvas.width !== window.innerWidth || gameCanvas.height !== window.innerHeight) {
+      gameCanvas.width  = window.innerWidth;
+      gameCanvas.height = window.innerHeight;
+      container.style.width  = '100vw';
+      container.style.height = '100vh';
+      container.style.left   = '0';
+      container.style.top    = '0';
+      gameCanvas.style.width  = '100vw';
+      gameCanvas.style.height = '100vh';
+      gameCanvas.style.left   = '0';
+      gameCanvas.style.top    = '0';
+    }
+  }
+
+  // Clear
+  ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+  // Screen shake
+  let shaking = false;
+  if (shakeMag > 0) {
+    shakeX = (Math.random() - 0.5) * shakeMag;
+    shakeY = (Math.random() - 0.5) * shakeMag;
+    shakeMag *= 0.85;
+    if (shakeMag < 0.3) { shakeMag = 0; shakeX = 0; shakeY = 0; }
+    ctx.save();
+    ctx.translate(shakeX, shakeY);
+    shaking = true;
+  }
+
+  // Update hands from pose data
+  if (gameState !== GAME_STATES.LOADING) {
+    updateTrackedHands();
+  }
+
+  // State-specific update & draw
+  switch (gameState) {
+    case GAME_STATES.LOADING:
+      // Nothing — loading overlay is visible
+      break;
+
+    case GAME_STATES.PRE_GAME:
+      drawHands();
+      if (countdownActive) {
+        updateCountdown(dt);
+      } else {
+        updatePreGame(dt);
+      }
+      break;
+
+    case GAME_STATES.PLAYING:
+      // Update
+      updateBubbles(dt);
+      updateParticles(dt);
+      checkBubbleCollisions();
+
+      // Round timer — only count down if there are bubbles to pop
+      // (don't tick during the brief pause between rounds)
+      const aliveBubbles = bubbles.filter(b => b.alive).length;
+      if (!roundCleared) {
+        roundTimer -= dt;
+      }
+
+      // Check round completion
+      if (aliveBubbles === 0 && !roundCleared) {
+        roundCleared = true;
+        showRoundFlash(`Round ${round} Clear!`);
+        // Start next round after a brief pause
+        setTimeout(() => {
+          if (gameState === GAME_STATES.PLAYING) {
+            startNextRound();
+          }
+        }, 1200);
+      }
+
+      // Timer expired with bubbles remaining — game over
+      if (roundTimer <= 0 && aliveBubbles > 0) {
+        roundTimer = 0;
+        gameOver();
+        break;
+      }
+
+      // Draw
+      drawBubbles();
+      drawParticles();
+      drawHands();
+      drawTimerBar();
+      drawHUD();
+      drawRoundFlash(dt);
+      break;
+
+    case GAME_STATES.POST_GAME:
+      // Keep showing remaining bubbles fading
+      updateParticles(dt);
+      drawParticles();
+      drawHands();
+      updatePostGame(dt);
+      break;
+  }
+
+  // Restore from screen shake
+  if (shaking) ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ── BOOT ──────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function boot() {
+  try {
+    // Load assets in parallel with MagicMat
+    loadingStatus.textContent = 'Loading assets...';
+
+    const [baseImg, shineImg] = await Promise.all([
+      loadImage('bubble-base.png'),
+      loadImage('bubble-shine 1.png'),
+    ]);
+    bubbleBaseImg = baseImg;
+    bubbleShineImg = shineImg;
+
+    // Init audio (don't block on failure)
+    initAudio().catch(e => console.warn('[BubblePops] Audio init failed:', e));
+
+    // Start game loop immediately (renders loading screen)
+    requestAnimationFrame(gameLoop);
+
+    // Init MagicMat
+    loadingStatus.textContent = 'Loading pose model...';
+    mat = new MagicMat(container, {
+      manifestUrl: '../targets/targets.json',
+      enableTracking: true,
+      enablePose: true,
+      enableMinimap: false,
+      enableReplace: false,
+      uiScanning: 'no',
+      uiLoading: 'no',
+    });
+
+    mat.on('targetLoaded', () => {
+      mat.start();
+      // Hide the library's skeleton overlay — we draw our own hand cursors
+      const poseCanvas = container.querySelector('[data-magic-mat="pose"]');
+      if (poseCanvas) poseCanvas.style.display = 'none';
+      // Also hide the compositing canvas (not used in this game)
+      const compCanvas = container.querySelector('[data-magic-mat="comp"]');
+      if (compCanvas) compCanvas.style.display = 'none';
+    });
+
+    loadingStatus.textContent = 'Initializing pose model...';
+    await mat.init();
+
+    loadingStatus.textContent = 'Loading tracking target...';
+    const names = mat.getTargetNames();
+    if (names.length > 0) {
+      await mat.loadTarget(names[0]);
+    }
+
+    // Hide loading overlay
+    loadingOverlay.classList.add('hidden');
+    setTimeout(() => { loadingOverlay.style.display = 'none'; }, 500);
+
+    // Transition to pre-game
+    gameState = GAME_STATES.PRE_GAME;
+
+    // Resume audio context on first interaction
+    document.addEventListener('click', () => {
+      if (audioCtx?.state === 'suspended') audioCtx.resume();
+    }, { once: true });
+
+  } catch (e) {
+    console.error('[BubblePops] Boot failed:', e);
+    loadingStatus.textContent = `Error: ${e.message}`;
+    loadingStatus.style.color = '#f44';
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
