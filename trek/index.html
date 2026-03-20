@@ -21,12 +21,17 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
    MAIN MENU
    ============================================================ */
 #main-menu {
-  flex-direction: column; align-items: center; justify-content: center;
-  background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 70%);
+  background: #0a0a0f; overflow: hidden;
+}
+#attract-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+#attract-canvas canvas { display: block; width: 100%; height: 100%; }
+#main-menu-content {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
 #main-menu h1 {
   font-size: 4rem; font-weight: 200; letter-spacing: 0.5em; text-transform: uppercase;
-  color: #f0f0f0; margin-bottom: 3rem; text-shadow: 0 0 40px rgba(100,140,255,0.3);
+  color: #f0f0f0; margin-bottom: 3rem; text-shadow: 0 0 40px rgba(100,140,255,0.5), 0 2px 20px rgba(0,0,0,0.8);
 }
 #main-menu .menu-buttons { display: flex; flex-direction: column; gap: 0.75rem; }
 #main-menu button {
@@ -197,6 +202,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
 .mp-history-item:hover { background: rgba(100,140,255,0.1); border-color: rgba(100,140,255,0.3); }
 .mp-history-item .name { color: #ccc; font-size: 0.9rem; }
 .mp-history-item .meta { color: #666; font-size: 0.75rem; }
+.mp-history-item .end-btn { background: rgba(200,60,60,0.25); border: 1px solid rgba(200,60,60,0.4); color: #e88; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 3px; cursor: pointer; margin-left: 0.5rem; flex-shrink: 0; }
+.mp-history-item .end-btn:hover { background: rgba(200,60,60,0.5); color: #fcc; }
 #mp-share-url:hover { color: #fff; }
 #mp-status { color: #888; font-size: 0.85rem; margin-top: 0.5rem; }
 #mp-waiting-banner { display: none; position: absolute; bottom: 4rem; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); border: 1px solid rgba(100,140,255,0.3); color: #b0c8ff; padding: 0.6rem 1.5rem; border-radius: 6px; font-size: 0.9rem; z-index: 25; }
@@ -209,13 +216,28 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
      MAIN MENU
      ============================================================ -->
 <div id="main-menu" class="section active">
-  <h1>Trek</h1>
-  <div class="menu-buttons">
-    <button onclick="App.switchTo('game-view', true)">New Game</button>
-    <button onclick="App.loadGame()" id="btn-continue" style="display:none">Continue</button>
-    <button onclick="App.switchTo('party-screen')">Party</button>
-    <button onclick="App.switchTo('editor-screen')">Editor</button>
-    <button onclick="App.switchTo('mp-screen'); MP.renderHistory()">Multiplayer</button>
+  <div id="attract-canvas"></div>
+  <div id="main-menu-content">
+    <h1>Trek</h1>
+
+    <!-- Your Games list (populated on load) -->
+    <div class="mp-panel" id="main-history" style="display:none; margin-bottom: 1.5rem;">
+      <h3>Your Games</h3>
+      <div id="main-history-list"></div>
+    </div>
+
+    <div class="menu-buttons">
+      <button id="main-start-btn" onclick="MP.uiShowCreate()">Start Game</button>
+    </div>
+
+    <!-- Inline create-match panel (hidden until Start Game clicked) -->
+    <div class="mp-panel" id="main-create" style="display:none; margin-top: 1.5rem;">
+      <h3>New Game</h3>
+      <input type="text" id="main-create-match-name" placeholder="Game name" maxlength="50">
+      <input type="text" id="main-create-name" placeholder="Your name" maxlength="50">
+      <button class="primary" onclick="MP.uiCreate()">Create &amp; Invite Players</button>
+      <div id="main-create-status" style="color:#888;font-size:0.85rem;margin-top:0.5rem;"></div>
+    </div>
   </div>
 </div>
 
@@ -223,26 +245,11 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
      MULTIPLAYER SCREEN
      ============================================================ -->
 <div id="mp-screen" class="section">
-  <h2>Multiplayer</h2>
-
-  <!-- Create panel -->
-  <div class="mp-panel" id="mp-menu">
-    <h3>Create a Match</h3>
-    <input type="text" id="mp-create-match-name" placeholder="Match name" maxlength="50">
-    <input type="text" id="mp-create-name" placeholder="Your name" maxlength="50">
-    <button class="primary" onclick="MP.uiCreate()">Create Match</button>
-    <div id="mp-status"></div>
-  </div>
-
-  <!-- Recent games list -->
-  <div class="mp-panel" id="mp-history" style="display:none">
-    <h3>Your Games</h3>
-    <div id="mp-history-list"></div>
-  </div>
+  <h2 id="mp-screen-title">Game Lobby</h2>
 
   <!-- Join panel (shown when arriving via invite URL) -->
   <div class="mp-panel" id="mp-join" style="display:none">
-    <h3>Join Match</h3>
+    <h3>Join Game</h3>
     <p style="color:#888;margin-bottom:1rem;">You've been invited!</p>
     <input type="text" id="mp-join-name" placeholder="Your name" maxlength="50">
     <button class="primary" onclick="MP.uiJoin()">Join</button>
@@ -258,7 +265,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
       <button class="primary" id="mp-start-btn" onclick="MP.uiStart()" style="display:none">Start Game</button>
       <span id="mp-lobby-status" style="color:#888;">Waiting for host to start...</span>
     </div>
-    <div id="mp-status-lobby" style="color:#888;font-size:0.85rem;margin-top:0.5rem;"></div>
+    <div id="mp-status" style="color:#888;font-size:0.85rem;margin-top:0.5rem;"></div>
   </div>
 
   <button class="back-btn" onclick="MP.uiBack()">← Back</button>
@@ -331,7 +338,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
     <!-- Ready button (shown after replay, before your turn starts) -->
     <button id="mp-ready-btn" onclick="MP.onReady()" style="display:none">Ready</button>
   </div>
-  <button class="back-btn" onclick="App.switchTo('main-menu')">☰ Menu</button>
+  <button class="back-btn" onclick="App.switchTo('main-menu'); MP.renderHistory()">☰ Menu</button>
 </div>
 
 <!-- ============================================================
@@ -1257,7 +1264,13 @@ class WorldRenderer {
     const ot = ObjectTypes[block.type];
     const qc = this.quantizeColor(block.color);
     const mat = this.getMaterial(qc, seen);
-    const sinkY = (y >= 1) ? -0.03 : 0;
+    // Objects (y>=1) sit on the ground tile below them — offset by actual ground height
+    let sinkY = 0;
+    if (y >= 1 && this.world) {
+      const ground = this.world.getBlock(x, 0, z);
+      const groundTop = ground ? ground.heightUnits * 0.5 : 1.0; // default h=2 → 1.0
+      sinkY = groundTop - 1.0; // offset relative to the default y=1 position
+    }
 
     // ---- Multi-tile: non-origin tiles render nothing (invisible placeholder) ----
     if (block.originX !== undefined) {
@@ -3465,9 +3478,14 @@ const Game = {
     const hits = this.raycaster.intersectObjects(blockMeshes, false);
 
     if (hits.length > 0) {
-      const hit = hits[0];
-      const tx = Math.round(hit.object.position.x);
-      const tz = Math.round(hit.object.position.z);
+      // Prefer top-face hits to avoid picking wrong tile via side faces of taller neighbors
+      let hit = hits[0];
+      for (const h of hits) {
+        if (h.face && h.face.normal.y > 0.5) { hit = h; break; }
+      }
+      // Use hit point for tile coords — more accurate than mesh position for angled rays
+      const tx = Math.round(hit.point.x);
+      const tz = Math.round(hit.point.z);
 
       // Update hover cursor + object highlight
       if (!this.hoveredTile || this.hoveredTile.x !== tx || this.hoveredTile.z !== tz) {
@@ -3534,7 +3552,6 @@ const Game = {
   _updateHoverCursor(x, z) {
     if (!this.hoverCursor) return;
 
-    // Place cursor at ground level, not on top of objects
     const groundH = this._getGroundHeight(x, z);
     this.hoverCursor.position.set(x, groundH + 0.02, z);
     this.hoverCursor.visible = true;
@@ -4144,11 +4161,15 @@ const MP = {
     this.stopPolling();
     this._pollVisHandler = () => {
       if (!document.hidden && this.pollTimer) {
-        console.log('[MP] Tab visible, polling game...');
         this.poll();
       }
     };
+    this._pollFocusHandler = () => {
+      if (this.pollTimer) this.poll();
+    };
     document.addEventListener('visibilitychange', this._pollVisHandler);
+    window.addEventListener('focus', this._pollFocusHandler);
+    this.poll(); // fire immediately, don't wait for first interval
     this.pollTimer = setInterval(() => this.poll(), 2000);
   },
 
@@ -4158,19 +4179,27 @@ const MP = {
       document.removeEventListener('visibilitychange', this._pollVisHandler);
       this._pollVisHandler = null;
     }
+    if (this._pollFocusHandler) {
+      window.removeEventListener('focus', this._pollFocusHandler);
+      this._pollFocusHandler = null;
+    }
   },
 
   // ── Lobby polling ─────────────────────────────────────────
   startLobbyPoll() {
     this.stopLobbyPoll();
-    // Immediate poll when tab becomes visible again (browsers throttle background intervals)
+    // Immediate poll when tab/window becomes visible (browsers throttle background intervals)
     this._lobbyVisHandler = () => {
       if (!document.hidden && this.lobbyPollTimer) {
-        console.log('[MP] Tab visible, polling lobby...');
         this._lobbyPollOnce();
       }
     };
+    this._lobbyFocusHandler = () => {
+      if (this.lobbyPollTimer) this._lobbyPollOnce();
+    };
     document.addEventListener('visibilitychange', this._lobbyVisHandler);
+    window.addEventListener('focus', this._lobbyFocusHandler);
+    this._lobbyPollOnce(); // fire immediately, don't wait for first interval
     this.lobbyPollTimer = setInterval(() => this._lobbyPollOnce(), 2000);
   },
 
@@ -4196,6 +4225,10 @@ const MP = {
     if (this._lobbyVisHandler) {
       document.removeEventListener('visibilitychange', this._lobbyVisHandler);
       this._lobbyVisHandler = null;
+    }
+    if (this._lobbyFocusHandler) {
+      window.removeEventListener('focus', this._lobbyFocusHandler);
+      this._lobbyFocusHandler = null;
     }
   },
 
@@ -4365,6 +4398,14 @@ const MP = {
       }
 
       // Round 0 setup actions
+      case 'GENERATE_MAP': {
+        // Build the entire world locally from seed — replaces thousands of PLACE_TILE/PLACE_OBJECT actions
+        const d = action_data;
+        MP.buildWorldFromSeed(d.seed, d.size);
+        break;
+      }
+
+      // Legacy support for old matches that stored individual tile/object actions
       case 'PLACE_TILE': {
         const d = action_data;
         Game.world.setBlock(d.x, d.y, d.z, d.tileType, d.h, d.color);
@@ -4411,12 +4452,12 @@ const MP = {
   },
 
   // ── Test map generator ────────────────────────────────────
-  generateTestMap(playerCount) {
-    const actions = [];
-    const SIZE = 128;
+  // ── Build world directly from seed (no actions needed) ───────
+  // All clients call this with the same seed to get identical worlds
+  buildWorldFromSeed(seed, size, opts = {}) {
+    const world = opts.world || Game.world;
+    const SIZE = size;
 
-    // Seeded pseudo-random number generator (deterministic)
-    const seed = 12345;
     const rng = (x, z) => {
       let h = seed + x * 374761393 + z * 668265263;
       h = (h ^ (h >> 13)) * 1274126177;
@@ -4424,13 +4465,9 @@ const MP = {
       return (h & 0x7fffffff) / 0x7fffffff;
     };
 
-    // Determine which tiles are roads based on grid spacing
     const isRoad = (x, z) => {
-      const mainRoadSpacing = 18;
-      const alleySpacing = 6;
-      const roadWidth = 2;
-      const mainRoadOffsets = [0, 1];
-      const alleyOffsets = [0, 1];
+      const mainRoadSpacing = 18, alleySpacing = 6, roadWidth = 2;
+      const mainRoadOffsets = [0, 1], alleyOffsets = [0, 1];
       const xMainRoad = mainRoadOffsets.some(off => Math.abs((x - off) % mainRoadSpacing) < roadWidth);
       const zMainRoad = mainRoadOffsets.some(off => Math.abs((z - off) % mainRoadSpacing) < roadWidth);
       const xAlley = alleyOffsets.some(off => Math.abs((x - off) % alleySpacing) === 0);
@@ -4439,9 +4476,8 @@ const MP = {
     };
 
     const isPavement = (x, z) => {
-      const mainRoadSpacing = 18;
+      const mainRoadSpacing = 18, roadWidth = 2;
       const mainRoadOffsets = [0, 1];
-      const roadWidth = 2;
       const xMainRoad = mainRoadOffsets.some(off => Math.abs((x - off) % mainRoadSpacing) < roadWidth);
       const zMainRoad = mainRoadOffsets.some(off => Math.abs((z - off) % mainRoadSpacing) < roadWidth);
       const xMainPave = mainRoadOffsets.some(off => Math.abs((x - off) % mainRoadSpacing) === roadWidth || Math.abs((x - off) % mainRoadSpacing) === roadWidth + 1);
@@ -4449,190 +4485,167 @@ const MP = {
       return (xMainRoad && (zMainPave)) || (zMainRoad && (xMainPave));
     };
 
-    // ── Ground tiles with noise variation ────────────────────
+    const terrainH = (x, z) => {
+      const h1 = Math.sin(x * 0.08) * Math.cos(z * 0.06) * 0.8;
+      const h2 = Math.sin(x * 0.15 + 2.1) * Math.cos(z * 0.12 + 1.3) * 0.4;
+      const h3 = Math.sin(x * 0.25 + 5.0) * Math.sin(z * 0.22 + 3.7) * 0.2;
+      return Math.max(1, Math.min(3, Math.round(2 + h1 + h2 + h3)));
+    };
+
+    const isInRoadArea = (x, z) => isRoad(x, z) || isPavement(x, z);
+
+    // Ground tiles
     for (let x = 0; x < SIZE; x++) {
       for (let z = 0; z < SIZE; z++) {
-        const r1 = rng(x * 73, z * 97);
-        const r2 = rng(x * 41, z * 59);
+        const r1 = rng(x * 73, z * 97), r2 = rng(x * 41, z * 59);
         const variation = Math.sin(x * 0.3 + r1) * Math.cos(z * 0.3 + r2) * 0.08;
         const base = [0.28, 0.42, 0.18];
         const r = Math.max(0, Math.min(1, base[0] + variation));
         const g = Math.max(0, Math.min(1, base[1] + variation));
         const b = Math.max(0, Math.min(1, base[2] + variation));
         const color = '#' + [r, g, b].map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
-        actions.push({ type: 'PLACE_TILE', data: { x, y: 0, z, tileType: 'grass', h: 2, color } });
+        world.setBlock(x, 0, z, 'grass', terrainH(x, z), color);
       }
     }
 
-    // ── Road network ──────────────────────────────────────────
+    // Roads
     for (let x = 0; x < SIZE; x++) {
       for (let z = 0; z < SIZE; z++) {
-        if (isRoad(x, z)) {
-          actions.push({ type: 'PLACE_TILE', data: { x, y: 0, z, tileType: 'road', h: 2, color: '#666666' } });
-        } else if (isPavement(x, z)) {
-          actions.push({ type: 'PLACE_TILE', data: { x, y: 0, z, tileType: 'pavement', h: 2, color: '#999999' } });
-        }
+        if (isRoad(x, z)) world.setBlock(x, 0, z, 'road', 2, '#666666');
+        else if (isPavement(x, z)) world.setBlock(x, 0, z, 'pavement', 2, '#999999');
       }
     }
 
-    // ── Procedural buildings ───────────────────────────────────
-    const isInRoadArea = (x, z) => isRoad(x, z) || isPavement(x, z);
+    // Buildings
     const buildings = [];
     for (let bx = 4; bx < SIZE - 4; bx += 20) {
       for (let bz = 4; bz < SIZE - 4; bz += 20) {
         const r = rng(bx * 83, bz * 127);
-        const w = 4 + Math.floor(r * 4);
-        const h = 4 + Math.floor(rng(bx * 89, bz * 131) * 4);
-        const damaged = r > 0.65;
-        buildings.push({ x: bx, z: bz, w, h, damaged });
+        const w = 4 + Math.floor(r * 4), h = 4 + Math.floor(rng(bx * 89, bz * 131) * 4);
+        buildings.push({ x: bx, z: bz, w, h, damaged: r > 0.65 });
       }
     }
-
     for (const b of buildings) {
-      const walls = [];
       for (let dx = 0; dx < b.w; dx++) {
         for (let dz = 0; dz < b.h; dz++) {
           if (dx === 0 || dx === b.w - 1 || dz === 0 || dz === b.h - 1) {
-            if (!isInRoadArea(b.x + dx, b.z + dz)) {
-              walls.push([b.x + dx, b.z + dz]);
+            const wx = b.x + dx, wz = b.z + dz;
+            if (!isInRoadArea(wx, wz)) {
+              if (b.damaged && rng(wx * 7, wz * 11) > 0.6) {
+                world.setBlock(wx, 1, wz, 'wall_damaged', 2, '#887766');
+              } else {
+                world.setBlock(wx, 1, wz, 'wall', 3, '#776655');
+              }
             }
           }
         }
       }
-      for (const [wx, wz] of walls) {
-        if (b.damaged && rng(wx * 7, wz * 11) > 0.6) {
-          actions.push({ type: 'PLACE_OBJECT', data: { x: wx, y: 1, z: wz, objType: 'wall_damaged', h: 2, color: '#887766' } });
-        } else {
-          actions.push({ type: 'PLACE_OBJECT', data: { x: wx, y: 1, z: wz, objType: 'wall', h: 3, color: '#776655' } });
-        }
-      }
     }
 
-    // ── Scattered cover objects (crates, barrels, sandbags) ─────
-    const coverPoints = [];
+    // Cover objects
     for (let i = 0; i < 150; i++) {
-      const r1 = rng(i * 13, i * 17);
-      const r2 = rng(i * 19, i * 23);
-      const x = Math.floor(r1 * (SIZE - 4)) + 2;
-      const z = Math.floor(r2 * (SIZE - 4)) + 2;
+      const x = Math.floor(rng(i * 13, i * 17) * (SIZE - 4)) + 2;
+      const z = Math.floor(rng(i * 19, i * 23) * (SIZE - 4)) + 2;
       if (!isInRoadArea(x, z)) {
-        coverPoints.push({ x, z, type: rng(i * 29, i * 31) });
+        const t = rng(i * 29, i * 31);
+        if (t < 0.5) world.setBlock(x, 1, z, 'crate_wood', 1, '#8b6914');
+        else if (t < 0.75) world.setBlock(x, 1, z, 'crate_metal', 1, '#556677');
+        else if (t < 0.9) world.setBlock(x, 1, z, 'barrel', 1, '#445544');
+        else world.setBlock(x, 1, z, 'sandbag', 1, '#8a7a5a');
       }
     }
 
-    for (const pt of coverPoints.slice(0, 150)) {
-      const t = pt.type;
-      if (t < 0.5) {
-        actions.push({ type: 'PLACE_OBJECT', data: { x: pt.x, y: 1, z: pt.z, objType: 'crate_wood', h: 1, color: '#8b6914' } });
-      } else if (t < 0.75) {
-        actions.push({ type: 'PLACE_OBJECT', data: { x: pt.x, y: 1, z: pt.z, objType: 'crate_metal', h: 1, color: '#556677' } });
-      } else if (t < 0.9) {
-        actions.push({ type: 'PLACE_OBJECT', data: { x: pt.x, y: 1, z: pt.z, objType: 'barrel', h: 1, color: '#445544' } });
-      } else {
-        actions.push({ type: 'PLACE_OBJECT', data: { x: pt.x, y: 1, z: pt.z, objType: 'sandbag', h: 1, color: '#8a7a5a' } });
-      }
-    }
-
-    // ── Rubble piles near damaged buildings ────────────────────
+    // Rubble
     for (const b of buildings) {
       if (b.damaged) {
         for (let i = 0; i < 3; i++) {
-          const r1 = rng(b.x * 37 + i, b.z * 41 + i);
-          const r2 = rng(b.x * 43 + i, b.z * 47 + i);
-          const rx = b.x + Math.floor(r1 * b.w);
-          const rz = b.z + Math.floor(r2 * b.h);
-          if (!isInRoadArea(rx, rz)) {
-            actions.push({ type: 'PLACE_OBJECT', data: { x: rx, y: 1, z: rz, objType: 'rubble', h: 1, color: '#665544' } });
-          }
+          const rx = b.x + Math.floor(rng(b.x * 37 + i, b.z * 41 + i) * b.w);
+          const rz = b.z + Math.floor(rng(b.x * 43 + i, b.z * 47 + i) * b.h);
+          if (!isInRoadArea(rx, rz)) world.setBlock(rx, 1, rz, 'rubble', 1, '#665544');
         }
       }
     }
 
-    // ── Vehicles on roads ──────────────────────────────────────
+    // Vehicles
     for (let i = 0; i < 8; i++) {
-      const r1 = rng(i * 53, i * 61);
-      const r2 = rng(i * 67, i * 71);
-      let x, z;
-      for (let tries = 0; tries < 10; tries++) {
-        x = Math.floor(r1 * (SIZE - 4)) + 2;
-        z = Math.floor(r2 * (SIZE - 4)) + 2;
-        if (isRoad(x, z)) break;
-      }
+      const x = Math.floor(rng(i * 53, i * 61) * (SIZE - 4)) + 2;
+      const z = Math.floor(rng(i * 67, i * 71) * (SIZE - 4)) + 2;
       if (isRoad(x, z)) {
         const vtype = rng(i * 73, i * 79) > 0.5 ? 'car' : 'dumpster';
-        actions.push({ type: 'PLACE_OBJECT', data: { x, y: 1, z, objType: vtype, h: vtype === 'car' ? 1 : 2, color: vtype === 'car' ? '#3a5577' : '#2a4a2a' } });
+        world.setBlock(x, 1, z, vtype, vtype === 'car' ? 1 : 2, vtype === 'car' ? '#3a5577' : '#2a4a2a');
       }
     }
 
-    // ── Street lamps at intersections ──────────────────────────
+    // Street lamps
     for (let x = 9; x < SIZE; x += 18) {
       for (let z = 9; z < SIZE; z += 18) {
-        actions.push({ type: 'PLACE_OBJECT', data: { x, y: 1, z, objType: 'street_lamp', h: 5, color: '#555558' } });
+        world.setBlock(x, 1, z, 'street_lamp', 5, '#555558');
       }
     }
 
-    // ── Trees and bushes at edges and gaps ─────────────────────
+    // Trees & bushes
     for (let i = 0; i < 60; i++) {
-      const r1 = rng(i * 83, i * 89);
-      const r2 = rng(i * 97, i * 101);
-      const x = Math.floor(r1 * (SIZE - 4)) + 2;
-      const z = Math.floor(r2 * (SIZE - 4)) + 2;
+      const x = Math.floor(rng(i * 83, i * 89) * (SIZE - 4)) + 2;
+      const z = Math.floor(rng(i * 97, i * 101) * (SIZE - 4)) + 2;
       if (!isInRoadArea(x, z)) {
         const isTree = rng(i * 103, i * 107) > 0.5;
-        actions.push({ type: 'PLACE_OBJECT', data: { x, y: 1, z, objType: isTree ? 'tree' : 'bush', h: isTree ? 3 : 2, color: isTree ? '#2a5a2a' : '#1a4a1a' } });
+        world.setBlock(x, 1, z, isTree ? 'tree' : 'bush', isTree ? 3 : 2, isTree ? '#2a5a2a' : '#1a4a1a');
       }
     }
 
-    // ── Fences around some buildings ───────────────────────────
+    // Fences
     for (let i = 0; i < 20; i++) {
-      const r1 = rng(i * 109, i * 113);
-      const r2 = rng(i * 127, i * 131);
+      const r1 = rng(i * 109, i * 113), r2 = rng(i * 127, i * 131);
       const bIdx = Math.floor(r1 * buildings.length);
       if (bIdx < buildings.length) {
         const b = buildings[bIdx];
-        const side = Math.floor(r2 * 4);
-        const fenceLen = 3 + Math.floor(r2 * 3);
+        const side = Math.floor(r2 * 4), fenceLen = 3 + Math.floor(r2 * 3);
         for (let j = 0; j < fenceLen; j++) {
           let fx, fz;
-          if (side === 0) {
-            fx = b.x + j;
-            fz = b.z - 1;
-          } else if (side === 1) {
-            fx = b.x + b.w;
-            fz = b.z + j;
-          } else if (side === 2) {
-            fx = b.x + j;
-            fz = b.z + b.h;
-          } else {
-            fx = b.x - 1;
-            fz = b.z + j;
-          }
+          if (side === 0) { fx = b.x + j; fz = b.z - 1; }
+          else if (side === 1) { fx = b.x + b.w; fz = b.z + j; }
+          else if (side === 2) { fx = b.x + j; fz = b.z + b.h; }
+          else { fx = b.x - 1; fz = b.z + j; }
           if (fx >= 0 && fx < SIZE && fz >= 0 && fz < SIZE && !isInRoadArea(fx, fz)) {
-            actions.push({ type: 'PLACE_OBJECT', data: { x: fx, y: 1, z: fz, objType: 'fence', h: 1, color: '#5a4a32' } });
+            world.setBlock(fx, 1, fz, 'fence', 1, '#5a4a32');
           }
         }
       }
     }
 
-    // ── Fires on barrels and in ruins ──────────────────────────
-    for (let i = 0; i < 15; i++) {
-      const r1 = rng(i * 137, i * 139);
-      const r2 = rng(i * 149, i * 151);
-      let fx = Math.floor(r1 * (SIZE - 4)) + 2;
-      let fz = Math.floor(r2 * (SIZE - 4)) + 2;
-      if (!isInRoadArea(fx, fz)) {
-        const intensity = 0.8 + rng(i * 157, i * 163) * 0.8;
-        const radius = 0.2 + rng(i * 167, i * 173) * 0.4;
-        actions.push({ type: 'SPAWN_FIRE', data: { x: fx, z: fz, intensity, radius, yOffset: 0.5 } });
+    // Fires (skip for attract mode / when no Game scene is available)
+    if (!opts.skipFires) {
+      for (let i = 0; i < 15; i++) {
+        const fx = Math.floor(rng(i * 137, i * 139) * (SIZE - 4)) + 2;
+        const fz = Math.floor(rng(i * 149, i * 151) * (SIZE - 4)) + 2;
+        if (!isInRoadArea(fx, fz)) {
+          Game.spawnFire(fx, fz, {
+            intensity: 0.8 + rng(i * 157, i * 163) * 0.8,
+            radius: 0.2 + rng(i * 167, i * 173) * 0.4,
+            yOffset: 0.5,
+          });
+        }
       }
     }
 
-    // ── Player spawns at well-separated corners ────────────────
+    console.log(`[MP] Built world from seed ${seed}, size ${SIZE}: ${world.blocks.size} blocks`);
+  },
+
+  // Get the setup actions to send to server (just GENERATE_MAP + SPAWN_CHARs)
+  getSetupActions(playerCount) {
+    const SIZE = 64;
+    const seed = Math.floor(Math.random() * 2147483647);
+    const actions = [];
+
+    // One action to tell all clients to build the world
+    actions.push({ type: 'GENERATE_MAP', data: { seed, size: SIZE } });
+
+    // Player spawns (these depend on player names, so must be explicit)
     const spawns = [
-      { x: 8, z: 8 },        // Player 0 (NW)
-      { x: SIZE - 8, z: SIZE - 8 },  // Player 1 (SE)
-      { x: SIZE - 8, z: 8 },   // Player 2 (NE)
-      { x: 8, z: SIZE - 8 },   // Player 3 (SW)
+      { x: 8, z: 8 },
+      { x: SIZE - 8, z: SIZE - 8 },
+      { x: SIZE - 8, z: 8 },
+      { x: 8, z: SIZE - 8 },
     ];
     for (let i = 0; i < playerCount; i++) {
       const sp = spawns[i % spawns.length];
@@ -4640,9 +4653,7 @@ const MP = {
       actions.push({
         type: 'SPAWN_CHAR',
         data: {
-          playerIdx: i,
-          name: pName,
-          classId: 'soldier',
+          playerIdx: i, name: pName, classId: 'soldier',
           x: sp.x, z: sp.z,
           weapons: [{ defId: 'pistol', currentAmmo: 12 }],
           ammo: { '9mm': 36 },
@@ -4781,29 +4792,41 @@ const MP = {
   },
 
   // ── UI handlers ───────────────────────────────────────────
+  uiShowCreate() {
+    const panel = document.getElementById('main-create');
+    const btn = document.getElementById('main-start-btn');
+    const showing = panel.style.display === 'none';
+    panel.style.display = showing ? 'block' : 'none';
+    if (btn) btn.style.display = showing ? 'none' : 'block';
+  },
+
   async uiCreate() {
-    const matchName = document.getElementById('mp-create-match-name').value.trim();
-    const name = document.getElementById('mp-create-name').value.trim();
-    if (!matchName) { this._uiStatus('Enter a match name'); return; }
-    if (!name) { this._uiStatus('Enter your name'); return; }
+    const matchName = document.getElementById('main-create-match-name').value.trim();
+    const name = document.getElementById('main-create-name').value.trim();
+    if (!matchName) { document.getElementById('main-create-status').textContent = 'Enter a game name'; return; }
+    if (!name) { document.getElementById('main-create-status').textContent = 'Enter your name'; return; }
     try {
-      this._uiStatus('Creating match...');
+      document.getElementById('main-create-status').textContent = 'Creating game...';
       await this.createMatch(name, matchName);
-      // Fetch status to get player list
       const status = await this.getStatus();
       this.players = status.players;
       this.matchName = status.matchName || matchName;
       this._pushUrl();
       this._saveToHistory();
-      // Show lobby
-      document.getElementById('mp-menu').style.display = 'none';
+      // Switch to lobby screen
+      App.switchTo('mp-screen');
+      document.getElementById('mp-join').style.display = 'none';
       document.getElementById('mp-lobby').style.display = 'block';
+      document.getElementById('mp-invite-btn').style.display = 'inline-block';
       document.getElementById('mp-start-btn').style.display = 'inline-block';
       document.getElementById('mp-lobby-status').textContent = '';
       this._renderLobby();
       this.startLobbyPoll();
+      // Clear create form
+      document.getElementById('main-create-status').textContent = '';
+      document.getElementById('main-create').style.display = 'none';
     } catch (e) {
-      this._uiStatus('Error: ' + e.message);
+      document.getElementById('main-create-status').textContent = 'Error: ' + e.message;
     }
   },
 
@@ -4839,8 +4862,8 @@ const MP = {
       document.getElementById('mp-start-btn').disabled = true;
       document.getElementById('mp-lobby-status').textContent = 'Starting...';
 
-      // Generate test map
-      const setupActions = this.generateTestMap(this.players.length);
+      // Generate setup actions (seed + player spawns — just a few actions, not thousands)
+      const setupActions = this.getSetupActions(this.players.length);
 
       // Send to server
       await this.startMatch(setupActions);
@@ -4861,7 +4884,6 @@ const MP = {
     this.active = false;
     this.matchToken = null;
     this.playerToken = null;
-    document.getElementById('mp-menu').style.display = 'block';
     document.getElementById('mp-join').style.display = 'none';
     document.getElementById('mp-lobby').style.display = 'none';
     this._pendingJoinToken = null;
@@ -4870,6 +4892,7 @@ const MP = {
     url.search = '';
     window.history.replaceState({}, '', url);
     App.switchTo('main-menu');
+    this.renderHistory();
   },
 
   _renderLobby() {
@@ -4905,8 +4928,9 @@ const MP = {
 
   renderHistory() {
     const games = this._loadHistory();
-    const panel = document.getElementById('mp-history');
-    const list = document.getElementById('mp-history-list');
+    const panel = document.getElementById('main-history');
+    const list = document.getElementById('main-history-list');
+    if (!panel || !list) return;
     if (!games.length) { panel.style.display = 'none'; return; }
     panel.style.display = 'block';
     list.innerHTML = '';
@@ -4914,14 +4938,35 @@ const MP = {
       const div = document.createElement('div');
       div.className = 'mp-history-item';
       const ago = this._timeAgo(g.updatedAt);
-      div.innerHTML = `<span class="name">${g.matchName || 'Unnamed match'}${g.isHost ? ' <span style="color:#f0c040;font-size:0.7rem">HOST</span>' : ''}</span><span class="meta">${ago}</span>`;
-      div.onclick = () => {
+      div.innerHTML = `<span class="name">${g.matchName || 'Unnamed match'}${g.isHost ? ' <span style="color:#f0c040;font-size:0.7rem">HOST</span>' : ''}</span><span class="meta">${ago}${g.isHost ? '<button class="end-btn">End</button>' : ''}</span>`;
+      // Rejoin on click (but not if they clicked the End button)
+      div.onclick = (e) => {
+        if (e.target.classList.contains('end-btn')) return;
         this.matchToken = g.matchToken;
         this.playerToken = g.playerToken;
         this.active = true;
         this._pushUrl();
         this._rejoin();
       };
+      // End Game button handler
+      if (g.isHost) {
+        const btn = div.querySelector('.end-btn');
+        btn.onclick = async (e) => {
+          e.stopPropagation();
+          if (!confirm('End and delete this game?')) return;
+          btn.textContent = '...';
+          try {
+            await this.api('matches.php?action=delete', 'POST', { matchToken: g.matchToken, playerToken: g.playerToken });
+          } catch (err) {
+            // Server delete failed — still remove locally
+            console.warn('[MP] Server delete failed:', err);
+          }
+          // Remove from localStorage
+          const hist = this._loadHistory().filter(h => h.matchToken !== g.matchToken);
+          localStorage.setItem('trek_games', JSON.stringify(hist));
+          this.renderHistory();
+        };
+      }
       list.appendChild(div);
     }
   },
@@ -4992,7 +5037,6 @@ const MP = {
       // New player arriving via invite link — fetch match name, show name prompt
       this._pendingJoinToken = matchToken;
       App.switchTo('mp-screen');
-      document.getElementById('mp-menu').style.display = 'none';
       document.getElementById('mp-join').style.display = 'block';
       // Fetch match info to show the match name
       this.matchToken = matchToken;
@@ -5025,9 +5069,9 @@ const MP = {
         await this._enterMultiplayerGame();
       } else if (status.status === 'lobby') {
         App.switchTo('mp-screen');
-        document.getElementById('mp-menu').style.display = 'none';
         document.getElementById('mp-lobby').style.display = 'block';
         if (this.isHost) {
+          document.getElementById('mp-invite-btn').style.display = 'inline-block';
           document.getElementById('mp-start-btn').style.display = 'inline-block';
           document.getElementById('mp-lobby-status').textContent = '';
         } else {
@@ -5039,7 +5083,19 @@ const MP = {
       }
     } catch (e) {
       console.error('Rejoin failed:', e);
-      App.switchTo('mp-screen');
+      // Match was deleted or invalid — remove from local history
+      const hist = this._loadHistory().filter(h => h.matchToken !== this.matchToken);
+      localStorage.setItem('trek_games', JSON.stringify(hist));
+      this.active = false;
+      this.matchToken = null;
+      this.playerToken = null;
+      // Clear URL params
+      const url = new URL(window.location);
+      url.searchParams.delete('match');
+      url.searchParams.delete('token');
+      window.history.replaceState({}, '', url);
+      App.switchTo('main-menu');
+      this.renderHistory();
     }
   },
 };
@@ -5051,7 +5107,7 @@ const App = {
   currentSection: 'main-menu',
   gameInitialized: false,
 
-  switchTo(sectionId, newGame = false) {
+  switchTo(sectionId) {
     // Hide all sections
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     // Show target
@@ -5062,40 +5118,10 @@ const App = {
       if (!this.gameInitialized) {
         Game.init(document.getElementById('game-canvas-wrap'));
         this.gameInitialized = true;
-      } else if (newGame) {
-        Game.newGame();
       }
       Game._resize();
     }
-
-    if (sectionId === 'party-screen') {
-      this._renderParty();
-    }
   },
-
-  loadGame() {
-    // TODO: localStorage load
-    this.switchTo('game-view');
-  },
-
-  _renderParty() {
-    const list = document.getElementById('party-list');
-    if (Game.characters.length === 0) {
-      list.innerHTML = '<p style="color:#666">No party yet. Start a new game.</p>';
-      return;
-    }
-    list.innerHTML = Game.characters.map(c => `
-      <div class="party-card">
-        <div class="name">${c.name}${c.hasMacguffin ? ' ✦' : ''}</div>
-        <div class="class">${c.classDef.name}</div>
-        <div class="stats">
-          HP: ${c.hp}/${c.maxHp}<br>
-          Move: ${c.moveRange}<br>
-          ${c.hasMacguffin ? '🔮 Carrying the macguffin' : ''}
-        </div>
-      </div>
-    `).join('');
-  }
 };
 
 // ================================================================
@@ -5934,24 +5960,329 @@ const Editor = {
 };
 
 // ================================================================
-// APP — update switchTo to init editor
+// ATTRACT MODE — infinite world flyover behind the main menu
 // ================================================================
-const _origSwitchTo = App.switchTo.bind(App);
-App.switchTo = function(sectionId, newGame) {
-  _origSwitchTo(sectionId, newGame);
-  if (sectionId === 'editor-screen') {
-    Editor.init(document.getElementById('editor-canvas-wrap'));
-    Editor._resize();
+const AttractMode = {
+  running: false,
+  scene: null,
+  camera: null,
+  renderer: null,
+  world: null,
+  worldRenderer: null,
+  camX: 0, camZ: 0,
+  seed: Math.floor(Math.random() * 2147483647),
+  _rafId: null,
+  _generated: new Set(), // track which tiles we've already generated
+  RADIUS: 22,            // generate tiles within this radius of camera
+  CULL: 30,              // remove tiles beyond this radius
+  _biomeIdx: 0,
+  _prevBiomeIdx: 0,
+  _biomeTimer: null,
+  _transitionZ: null,   // Z coordinate where biome transition started
+  _TRANSITION_BAND: 30, // tiles over which we blend between biomes
+
+  // Biome definitions: ground color base, fog/sky color, tree/vegetation styles
+  _biomes: [
+    { name: 'urban',   ground: [0.28, 0.42, 0.18], sky: 0x556688, tree: '#2a5a2a', bush: '#1a4a1a', road: '#666666', wall: '#776655' },
+    { name: 'desert',  ground: [0.62, 0.52, 0.35], sky: 0x887766, tree: '#5a6a2a', bush: '#7a6a3a', road: '#888070', wall: '#998877' },
+    { name: 'snow',    ground: [0.82, 0.85, 0.90], sky: 0x8899aa, tree: '#2a4a3a', bush: '#3a5a4a', road: '#777788', wall: '#889099' },
+    { name: 'jungle',  ground: [0.15, 0.38, 0.12], sky: 0x445544, tree: '#0a4a0a', bush: '#1a3a0a', road: '#555544', wall: '#665544' },
+    { name: 'autumn',  ground: [0.45, 0.35, 0.15], sky: 0x776655, tree: '#8a4a0a', bush: '#aa6a1a', road: '#777766', wall: '#887766' },
+  ],
+
+  // Seeded RNG — works for any world coordinate (infinite)
+  _rng(x, z) {
+    let h = this.seed + x * 374761393 + z * 668265263;
+    h = (h ^ (h >> 13)) * 1274126177;
+    h = h ^ (h >> 16);
+    return (h & 0x7fffffff) / 0x7fffffff;
+  },
+
+  _isRoad(x, z) {
+    const sp = 18, rw = 2;
+    const xMain = Math.abs(x % sp) < rw || Math.abs((x - 1) % sp) < rw;
+    const zMain = Math.abs(z % sp) < rw || Math.abs((z - 1) % sp) < rw;
+    const xAlley = x % 6 === 0 || (x - 1) % 6 === 0;
+    const zAlley = z % 6 === 0 || (z - 1) % 6 === 0;
+    return (xMain && z % sp < 3) || (zMain && x % sp < 3) || (xAlley && z % 6 < 2) || (zAlley && x % 6 < 2);
+  },
+
+  _isPavement(x, z) {
+    const sp = 18, rw = 2;
+    const xMain = Math.abs(x % sp) < rw || Math.abs((x - 1) % sp) < rw;
+    const zMain = Math.abs(z % sp) < rw || Math.abs((z - 1) % sp) < rw;
+    const xPave = Math.abs(x % sp) === rw || Math.abs(x % sp) === rw + 1 || Math.abs((x-1) % sp) === rw || Math.abs((x-1) % sp) === rw + 1;
+    const zPave = Math.abs(z % sp) === rw || Math.abs(z % sp) === rw + 1 || Math.abs((z-1) % sp) === rw || Math.abs((z-1) % sp) === rw + 1;
+    return (xMain && zPave) || (zMain && xPave);
+  },
+
+  _terrainH(x, z) {
+    const h1 = Math.sin(x * 0.08) * Math.cos(z * 0.06) * 0.8;
+    const h2 = Math.sin(x * 0.15 + 2.1) * Math.cos(z * 0.12 + 1.3) * 0.4;
+    const h3 = Math.sin(x * 0.25 + 5.0) * Math.sin(z * 0.22 + 3.7) * 0.2;
+    return Math.max(1, Math.min(3, Math.round(2 + h1 + h2 + h3)));
+  },
+
+  // Pick biome for a tile, blending in the transition zone with seeded randomness
+  _biomeForTile(x, z) {
+    if (this._transitionZ === null) return this._biomes[this._biomeIdx];
+    // Camera moves in -Z, so transition zone is from _transitionZ down to _transitionZ - BAND
+    const dist = this._transitionZ - z; // how far ahead of the transition start
+    if (dist <= 0) return this._biomes[this._prevBiomeIdx]; // behind transition = old biome
+    if (dist >= this._TRANSITION_BAND) return this._biomes[this._biomeIdx]; // past band = new biome
+    // In the blend zone: probability of new biome increases with distance
+    const blend = dist / this._TRANSITION_BAND; // 0..1
+    // Per-tile seeded noise for ragged edge
+    const noise = this._rng(x * 337 + z * 541, z * 173 + x * 419);
+    return (noise < blend) ? this._biomes[this._biomeIdx] : this._biomes[this._prevBiomeIdx];
+  },
+
+  // Generate a single tile column (ground + maybe object)
+  _generateTile(x, z) {
+    const key = `${x},${z}`;
+    if (this._generated.has(key)) return;
+    this._generated.add(key);
+
+    const world = this.world;
+    const rng = this._rng.bind(this);
+    const isRoad = this._isRoad(x, z);
+    const isPave = !isRoad && this._isPavement(x, z);
+
+    const biome = this._biomeForTile(x, z);
+
+    // Ground
+    if (isRoad) {
+      world.setBlock(x, 0, z, 'road', 2, biome.road);
+    } else if (isPave) {
+      world.setBlock(x, 0, z, 'pavement', 2, '#999999');
+    } else {
+      const r1 = rng(x * 73, z * 97), r2 = rng(x * 41, z * 59);
+      const v = Math.sin(x * 0.3 + r1) * Math.cos(z * 0.3 + r2) * 0.08;
+      const base = biome.ground;
+      const color = '#' + base.map(b => Math.round(Math.max(0, Math.min(1, b + v)) * 255).toString(16).padStart(2, '0')).join('');
+      world.setBlock(x, 0, z, 'grass', this._terrainH(x, z), color);
+    }
+
+    // Objects — only on non-road tiles, using deterministic placement
+    if (isRoad || isPave) return;
+
+    const objR = rng(x * 251, z * 257);
+
+    // Buildings
+    const bx0 = Math.floor((x - 4) / 20) * 20 + 4;
+    const bz0 = Math.floor((z - 4) / 20) * 20 + 4;
+    const bw = 4 + Math.floor(rng(bx0 * 83, bz0 * 127) * 4);
+    const bh = 4 + Math.floor(rng(bx0 * 89, bz0 * 131) * 4);
+    const damaged = rng(bx0 * 83, bz0 * 127) > 0.65;
+    const dx = x - bx0, dz = z - bz0;
+    if (dx >= 0 && dx < bw && dz >= 0 && dz < bh) {
+      if (dx === 0 || dx === bw - 1 || dz === 0 || dz === bh - 1) {
+        if (damaged && rng(x * 7, z * 11) > 0.6) {
+          world.setBlock(x, 1, z, 'wall_damaged', 2, biome.wall);
+        } else {
+          world.setBlock(x, 1, z, 'wall', 3, biome.wall);
+        }
+        return;
+      }
+    }
+
+    // Scatter objects
+    if (objR < 0.02) world.setBlock(x, 1, z, 'crate_wood', 1, '#8b6914');
+    else if (objR < 0.03) world.setBlock(x, 1, z, 'barrel', 1, '#445544');
+    else if (objR < 0.04) {
+      const isTree = rng(x * 103, z * 107) > 0.5;
+      world.setBlock(x, 1, z, isTree ? 'tree' : 'bush', isTree ? 3 : 2, isTree ? biome.tree : biome.bush);
+    }
+    else if (objR < 0.045) world.setBlock(x, 1, z, 'sandbag', 1, '#8a7a5a');
+  },
+
+  // Generate tiles around camera and cull distant ones
+  _updateWorld() {
+    const cx = Math.round(this.camX), cz = Math.round(this.camZ);
+    const R = this.RADIUS;
+
+    // Generate new tiles in radius
+    for (let dx = -R; dx <= R; dx++) {
+      for (let dz = -R; dz <= R; dz++) {
+        this._generateTile(cx + dx, cz + dz);
+      }
+    }
+
+    // Create meshes for new blocks, cull distant meshes
+    const wr = this.worldRenderer;
+    const CULL = this.CULL;
+    // Add meshes for blocks that don't have one yet
+    for (const [key, block] of this.world.blocks) {
+      if (wr.meshes.has(key)) continue;
+      const [bx, by, bz] = key.split(',').map(Number);
+      if (Math.abs(bx - cx) > R + 2 || Math.abs(bz - cz) > R + 2) continue;
+      wr._createMesh(bx, by, bz, block, true);
+    }
+
+    // Cull distant meshes and blocks
+    for (const [key, mesh] of wr.meshes) {
+      const [bx, , bz] = key.split(',').map(Number);
+      if (Math.abs(bx - cx) > CULL || Math.abs(bz - cz) > CULL) {
+        this.scene.remove(mesh);
+        if (mesh.geometry) mesh.geometry.dispose();
+        wr.meshes.delete(key);
+        this.world.blocks.delete(key);
+        // Remove from generated set so it can be regenerated if we loop back
+        this._generated.delete(`${bx},${bz}`);
+      }
+    }
+  },
+
+  _changeBiome() {
+    this._prevBiomeIdx = this._biomeIdx;
+    this._biomeIdx = (this._biomeIdx + 1) % this._biomes.length;
+    const biome = this._biomes[this._biomeIdx];
+    // Set target sky color — animate loop will lerp toward it
+    this._targetSky = new THREE.Color(biome.sky);
+    // Mark where the transition starts (camera Z) so tiles blend over the band
+    this._transitionZ = this.camZ;
+    // Clear generated set so new tiles ahead pick up the blended biome
+    this._generated.clear();
+  },
+
+  init() {
+    const container = document.getElementById('attract-canvas');
+    if (!container || this.renderer) return;
+
+    const biome = this._biomes[this._biomeIdx];
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(biome.sky);
+    this.scene.fog = new THREE.Fog(biome.sky, 25, 50);
+    this._targetSky = new THREE.Color(biome.sky);
+
+    this.camera = new THREE.OrthographicCamera(-20, 20, 12, -12, -100, 200);
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(this.renderer.domElement);
+
+    // Lighting
+    this.scene.add(new THREE.AmbientLight(0x8090b0, 0.4));
+    this.scene.add(new THREE.HemisphereLight(0x99bbdd, 0x445533, 0.25));
+    const sun = new THREE.DirectionalLight(0xffd8a0, 0.9);
+    sun.position.set(25, 15, 5);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 80;
+    const ss = 35;
+    sun.shadow.camera.left = -ss; sun.shadow.camera.right = ss;
+    sun.shadow.camera.top = ss; sun.shadow.camera.bottom = -ss;
+    sun.shadow.bias = -0.002;
+    this.scene.add(sun);
+    this.scene.add(sun.target);
+    this._sun = sun;
+
+    this.world = new World();
+    this.worldRenderer = new WorldRenderer(this.scene);
+    this.worldRenderer.world = this.world;
+
+    // Initial generation
+    this._updateWorld();
+
+    this._resize();
+    this.start();
+    window.addEventListener('resize', () => this._resize());
+  },
+
+  _resize() {
+    const container = document.getElementById('attract-canvas');
+    if (!container || !this.renderer) return;
+    const w = container.clientWidth, h = container.clientHeight;
+    if (w === 0 || h === 0) return;
+    this.renderer.setSize(w, h);
+    const aspect = w / h;
+    const viewSize = 8;
+    this.camera.left = -viewSize * aspect;
+    this.camera.right = viewSize * aspect;
+    this.camera.top = viewSize;
+    this.camera.bottom = -viewSize;
+    this.camera.updateProjectionMatrix();
+  },
+
+  _updateCamera() {
+    const tilt = Math.atan(1 / Math.sqrt(2));
+    const angle = Math.PI / 4;
+    const d = 25;
+    const h = d * Math.sin(tilt);
+    const hDist = d * Math.cos(tilt);
+    this.camera.position.set(
+      this.camX + Math.sin(angle) * hDist,
+      h,
+      this.camZ + Math.cos(angle) * hDist
+    );
+    this.camera.lookAt(this.camX, 0, this.camZ);
+    this._sun.position.set(this.camX + 25, 15, this.camZ + 5);
+    this._sun.target.position.set(this.camX, 0, this.camZ);
+  },
+
+  start() {
+    if (this.running) return;
+    this.running = true;
+    let frameCount = 0;
+    const animate = () => {
+      if (!this.running) return;
+      this._rafId = requestAnimationFrame(animate);
+
+      // Drift diagonally along tile direction: pure -Z = up-right in iso view
+      this.camZ -= 0.01;
+
+      // Lerp sky/fog color toward target biome
+      if (this._targetSky) {
+        this.scene.background.lerp(this._targetSky, 0.015);
+        this.scene.fog.color.copy(this.scene.background);
+      }
+
+      // Generate/cull every 30 frames (~0.5s) to avoid per-frame overhead
+      if (++frameCount % 30 === 0) {
+        this._updateWorld();
+      }
+
+      this._updateCamera();
+      this.renderer.render(this.scene, this.camera);
+    };
+    animate();
+
+    // Cycle biomes periodically
+    if (this._biomeTimer) clearInterval(this._biomeTimer);
+    this._biomeTimer = setInterval(() => this._changeBiome(), 5000);
+  },
+
+  stop() {
+    this.running = false;
+    if (this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null; }
+    if (this._biomeTimer) { clearInterval(this._biomeTimer); this._biomeTimer = null; }
+  },
+};
+
+// Hook attract mode to main menu visibility
+const _baseSwitchTo = App.switchTo.bind(App);
+App.switchTo = function(sectionId) {
+  _baseSwitchTo(sectionId);
+  if (sectionId === 'main-menu') {
+    if (!AttractMode.renderer) AttractMode.init();
+    else { AttractMode._resize(); AttractMode.start(); }
+  } else {
+    AttractMode.stop();
   }
 };
 
-// Check for save data
-if (localStorage.getItem('trek-save')) {
-  document.getElementById('btn-continue').style.display = 'block';
-}
+// ================================================================
+// Render game history on main menu
+MP.renderHistory();
 
-// Check for multiplayer URL parameters
+// Check for multiplayer URL parameters (invite links, rejoin)
 MP.checkUrlParams();
+
+// Start attract mode
+AttractMode.init();
 </script>
 </body>
 </html>
