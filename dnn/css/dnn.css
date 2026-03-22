@@ -155,6 +155,37 @@ body {
   opacity: 0.4;
 }
 
+/* TTS STATUS STRIP */
+.tts-status {
+  display: none;
+  padding: 4px 14px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  text-align: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 6;
+}
+
+.tts-status.ok {
+  display: block;
+  background: rgba(39,174,96,0.15);
+  color: #27ae60;
+}
+
+.tts-status.warn {
+  display: block;
+  background: rgba(211,84,0,0.2);
+  color: var(--amber);
+}
+
+.tts-status.error {
+  display: block;
+  background: rgba(192,57,43,0.2);
+  color: var(--red);
+}
+
 /* TOP BAR */
 .topbar {
   display: flex;
@@ -353,6 +384,26 @@ body {
 .stat-card.compact .sc-name { font-size: 0.55rem; margin-bottom: 0; display: inline; }
 .stat-card.compact .sc-num { font-size: 0.85rem; display: inline; margin-left: 6px; }
 .stat-card.compact .sc-lbl { display: none; }
+
+/* SUBTITLES */
+.subtitles {
+  min-height: 36px;
+  padding: 8px 20px;
+  background: rgba(0,0,0,0.85);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--paper);
+  line-height: 1.4;
+  text-align: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.subtitles.visible { opacity: 1; }
 
 /* TRANSPORT CONTROLS */
 .transport {

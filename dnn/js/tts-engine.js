@@ -173,6 +173,13 @@ class TTSEngine {
 
   _speakWebSpeech(text, { onStart, onEnd, onError }) {
     return new Promise((resolve) => {
+      if (!window.speechSynthesis) {
+        console.warn('[DNN TTS] speechSynthesis not available');
+        onError?.('not available');
+        resolve();
+        return;
+      }
+
       const utt = new SpeechSynthesisUtterance(text);
       utt.rate = 0.88;
       utt.pitch = 0.95;
@@ -182,16 +189,21 @@ class TTSEngine {
         utt.voice = this._webVoice;
       }
 
+      console.log(`[DNN TTS] Speaking: "${text.slice(0, 40)}…"`);
+
       utt.onstart = () => {
+        console.log('[DNN TTS] onstart fired');
         this._speaking = true;
         onStart?.();
       };
       utt.onend = () => {
+        console.log('[DNN TTS] onend fired');
         this._speaking = false;
         onEnd?.();
         resolve();
       };
       utt.onerror = (e) => {
+        console.warn('[DNN TTS] onerror fired:', e?.error || e);
         this._speaking = false;
         onError?.(e);
         resolve();

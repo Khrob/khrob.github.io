@@ -7,7 +7,7 @@ import { tts } from './tts-engine.js';
 import { presenter } from './presenter.js';
 import { LeadWeather } from './segments/lead-weather.js';
 
-const DNN_VERSION = '0.8.0';
+const DNN_VERSION = '0.9.0';
 
 const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 const SEGMENTS = [LeadWeather];
@@ -131,7 +131,16 @@ const ui = {
     if (studioMap) studioMap.flyTo([20, 15], 3, { duration: 2.5 });
   },
   highlightCountries(names) { doHighlight(names); },
-  clearHighlight() { doHighlight(null); }
+  clearHighlight() { doHighlight(null); },
+
+  showSubtitle(text) {
+    const el = document.getElementById('subtitles');
+    if (el) { el.textContent = text; el.classList.add('visible'); }
+  },
+  hideSubtitle() {
+    const el = document.getElementById('subtitles');
+    if (el) { el.textContent = ''; el.classList.remove('visible'); }
+  }
 };
 
 // ─── State ───────────────────────────────────────────────────────────────
@@ -172,12 +181,33 @@ export const DNN = {
   start() {
     console.log('[DNN] Starting broadcast');
 
-    // CRITICAL: "unlock" speech synthesis on mobile by speaking a silent
-    // utterance directly inside the user tap handler. Mobile browsers
-    // block speechSynthesis.speak() if not called from a user gesture.
-    const unlock = new SpeechSynthesisUtterance('');
-    unlock.volume = 0;
-    window.speechSynthesis.speak(unlock);
+    // CRITICAL: "unlock" speech synthesis on mobile.
+    // Must happen synchronously inside the user tap handler.
+    const statusEl = document.getElementById('tts-status');
+    try {
+      if (!window.speechSynthesis) {
+        throw new Error('speechSynthesis API not available');
+      }
+      window.speechSynthesis.cancel();
+      const unlock = new SpeechSynthesisUtterance('.');
+      unlock.volume = 0.01;
+      unlock.rate = 10;
+      unlock.onerror = (e) => {
+        console.warn('[DNN] Unlock utterance error:', e?.error || e);
+        if (statusEl) {
+          statusEl.className = 'tts-status warn';
+          statusEl.textContent = `UNLOCK FAILED — ${e?.error || 'unknown'} — will try subtitles`;
+        }
+      };
+      window.speechSynthesis.speak(unlock);
+      console.log('[DNN] Speech unlock fired');
+    } catch (e) {
+      console.warn('[DNN] Speech unlock failed:', e);
+      if (statusEl) {
+        statusEl.className = 'tts-status error';
+        statusEl.textContent = `NO SPEECH API — ${e.message} — subtitles only`;
+      }
+    }
 
     document.getElementById('dnn-intro').classList.remove('active');
     document.getElementById('broadcast-phase').classList.add('active');
@@ -254,6 +284,7 @@ export const DNN = {
     if (scriptIdx >= currentScript.length) {
       console.log('[DNN] Script complete');
       presenter.stopMouth();
+      ui.hideSubtitle();
       ui.clearHighlight();
       const nextIdx = currentSegmentIdx + 1;
       if (nextIdx < SEGMENTS.length) {
@@ -286,11 +317,57 @@ export const DNN = {
 
     if (line.onStart) line.onStart();
 
-    await tts.speak(line.text, {
-      onStart: () => presenter.startMouth(),
-      onEnd: () => presenter.stopMouth(),
-      onError: () => presenter.stopMouth()
-    });
+    // Always show subtitles
+    ui.showSubtitle(line.text);
+
+    // Try to speak. If speech fails or never starts, use a timed fallback.
+    let speechWorked = false;
+    let speechError = null;
+    const readingTime = Math.max(2000, line.text.length * 65);
+
+    try {
+      await Promise.race([
+        tts.speak(line.text, {
+          onStart: () => { speechWorked = true; presenter.startMouth(); },
+          onEnd: () => presenter.stopMouth(),
+          onError: (e) => { speechError = e; presenter.stopMouth(); }
+        }),
+        new Promise(resolve => setTimeout(() => {
+          if (!speechWorked) {
+            console.warn(`[DNN] Speech timeout on line ${idx}`);
+          }
+          resolve();
+        }, readingTime + 3000))
+      ]);
+    } catch (e) {
+      speechError = e;
+    }
+    presenter.stopMouth();
+
+    // Update visible TTS status
+    const statusEl = document.getElementById('tts-status');
+    if (statusEl) {
+      if (speechWorked) {
+        // Only show green briefly on first success
+        if (idx === 0) {
+          statusEl.className = 'tts-status ok';
+          statusEl.textContent = 'AUDIO OK';
+          setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+        }
+      } else {
+        statusEl.className = 'tts-status warn';
+        const reason = speechError?.error || speechError?.message || speechError || 'Speech blocked by browser';
+        statusEl.textContent = `NO AUDIO — ${reason} — reading subtitles`;
+      }
+    }
+
+    // If speech never started, pause for reading time
+    if (!speechWorked) {
+      console.log(`[DNN] No audio — subtitle pause ${readingTime}ms`);
+      await new Promise(r => setTimeout(r, readingTime));
+    }
+
+    ui.hideSubtitle();
 
     // Check again after speech finishes
     if (myGen !== speakGeneration) {
