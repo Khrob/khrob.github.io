@@ -171,6 +171,14 @@ export const DNN = {
 
   start() {
     console.log('[DNN] Starting broadcast');
+
+    // CRITICAL: "unlock" speech synthesis on mobile by speaking a silent
+    // utterance directly inside the user tap handler. Mobile browsers
+    // block speechSynthesis.speak() if not called from a user gesture.
+    const unlock = new SpeechSynthesisUtterance('');
+    unlock.volume = 0;
+    window.speechSynthesis.speak(unlock);
+
     document.getElementById('dnn-intro').classList.remove('active');
     document.getElementById('broadcast-phase').classList.add('active');
     initStudioMap();
@@ -236,7 +244,8 @@ export const DNN = {
     if (seg.voice) tts.setVoice(seg.voice);
     this._buildTicker(seg);
     currentScript = seg.getScript(ui);
-    pendingTimeout = setTimeout(() => this._speakNext(), 1200);
+    // Shorter delay — speech is already unlocked from the tap
+    pendingTimeout = setTimeout(() => this._speakNext(), 600);
   },
 
   async _speakNext() {
