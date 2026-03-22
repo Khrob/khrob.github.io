@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lead Weather — Weekly Conflict Report</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --red: #c0392b;
+  --red-dim: #8a2820;
+  --paper: #f0ece4;
+  --ink: #060a0f;
+  --navy: #0d1520;
+  --dim: #6a7080;
+  --rule: #1a2535;
+  --amber: #d35400;
+  --yellow: #e8a010;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--ink);
+  font-family: 'IBM Plex Sans', sans-serif;
+  height: 100vh;
+  overflow: hidden;
+  color: var(--paper);
+}
+
+/* ─── PHASE MANAGEMENT ─── */
+.phase { display: none; width: 100%; height: 100vh; }
+.phase.active { display: flex; flex-direction: column; }
+
+/* ─── BROADCAST PHASE ─── */
+#broadcast-phase {
+  background: #060c14;
+  position: relative;
+  transition: opacity 1s ease;
+}
+
+/* subtle noise texture overlay */
+#broadcast-phase::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.4;
+}
+
+/* TOP BAR */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 5;
+  background: rgba(6,10,15,0.9);
+}
+
+.network-logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.9rem;
+  letter-spacing: 0.1em;
+  color: var(--paper);
+  line-height: 1;
+}
+
+.network-logo span {
+  color: var(--red);
+}
+
+.live-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  color: var(--red);
+  border: 1px solid var(--red);
+  padding: 4px 10px;
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--red);
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.6); }
+}
+
+.edition-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+
+/* STUDIO AREA */
+.studio {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Grid backdrop */
+.studio-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 80% at 35% 55%, rgba(13,25,45,0.8) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 60% at 80% 30%, rgba(10,18,30,0.6) 0%, transparent 60%);
+}
+
+.studio-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* PRESENTER COLUMN */
+.presenter-col {
+  width: 44%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  position: relative;
+  z-index: 3;
+}
+
+#presenter-svg {
+  width: 100%;
+  max-width: 310px;
+  height: auto;
+  display: block;
+}
+
+/* eye blink */
+#eye-l, #eye-r {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.07s ease;
+}
+
+/* INFO COLUMN */
+.info-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px 28px 20px 12px;
+  position: relative;
+  z-index: 3;
+}
+
+.stat-card {
+  border-left: 3px solid var(--red);
+  padding: 10px 14px;
+  background: rgba(13,21,32,0.75);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transform: translateX(24px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  max-width: 340px;
+}
+
+.stat-card.show { opacity: 1; transform: translateX(0); }
+
+.sc-region {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.52rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 2px;
+}
+
+.sc-name {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--paper);
+  margin-bottom: 4px;
+}
+
+.sc-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.2rem;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+.sc-lbl {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.52rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* LOWER THIRD */
+.lower-third {
+  position: absolute;
+  bottom: 48px;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  transform: translateY(70px);
+  transition: transform 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  pointer-events: none;
+}
+
+.lower-third.up { transform: translateY(0); }
+
+.lt-inner {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 680px;
+}
+
+.lt-label {
+  background: var(--red);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.14em;
+  color: white;
+  padding: 5px 14px;
+  white-space: nowrap;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+.lt-text {
+  background: rgba(240,236,228,0.94);
+  color: #0a0a0a;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 5px 16px;
+  display: flex;
+  align-items: center;
+}
+
+/* TICKER */
+.ticker {
+  height: 30px;
+  background: var(--red);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 5;
+}
+
+.ticker-label {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  color: white;
+  background: rgba(0,0,0,0.3);
+  padding: 0 14px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ticker-track {
+  display: flex;
+  animation: ticker-scroll 60s linear infinite;
+  white-space: nowrap;
+}
+
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.ticker-item {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.9);
+  padding: 0 40px;
+}
+
+.ticker-sep {
+  color: rgba(255,255,255,0.4);
+  padding: 0 4px;
+}
+
+/* START OVERLAY */
+#start-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(6,10,15,0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  gap: 10px;
+  backdrop-filter: blur(2px);
+}
+
+.so-logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 4rem;
+  letter-spacing: 0.12em;
+  color: var(--paper);
+  line-height: 1;
+}
+
+.so-logo em { color: var(--red); font-style: normal; }
+
+.so-sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 12px;
+}
+
+.so-note {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.58rem;
+  color: #3a4050;
+  letter-spacing: 0.1em;
+  margin-top: 12px;
+}
+
+.begin-btn {
+  background: transparent;
+  border: 1px solid var(--red);
+  color: var(--red);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1rem;
+  letter-spacing: 0.2em;
+  padding: 11px 36px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.begin-btn:hover {
+  background: var(--red);
+  color: white;
+}
+
+/* ─── MAP PHASE ─── */
+#map-phase {
+  flex-direction: column;
+}
+
+.map-topbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+  background: rgba(6,10,15,0.95);
+}
+
+.map-masthead { display: flex; align-items: baseline; gap: 14px; }
+
+.map-logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2rem;
+  letter-spacing: 0.08em;
+  color: var(--paper);
+  line-height: 1;
+}
+
+.map-edition {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.map-stats { display: flex; gap: 24px; }
+
+.mstat { text-align: right; }
+
+.mstat-n {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.4rem;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.mstat-l {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.52rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  display: block;
+}
+
+.red-n { color: var(--red); }
+.amber-n { color: var(--amber); }
+.yellow-n { color: var(--yellow); }
+
+#map {
+  flex: 1;
+  background: #0a0e14;
+}
+
+.leaflet-tile-pane { filter: saturate(0) brightness(0.3) contrast(1.3); }
+
+.conflict-marker {
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.12);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  animation: pop-in 0.4s ease forwards;
+}
+
+.conflict-marker:hover { transform: scale(1.25) !important; z-index: 9999 !important; }
+
+@keyframes pop-in {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.leaflet-popup-content-wrapper {
+  background: #0e1520;
+  border: 1px solid #2a3545;
+  border-radius: 2px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.8);
+  padding: 0;
+}
+
+.leaflet-popup-tip { background: #0e1520; }
+.leaflet-popup-close-button { color: var(--dim) !important; font-size: 15px !important; }
+
+.popup-inner { padding: 14px 16px; min-width: 220px; }
+
+.p-region {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 3px;
+}
+
+.p-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.3rem;
+  letter-spacing: 0.04em;
+  color: var(--paper);
+  margin-bottom: 10px;
+  line-height: 1.1;
+}
+
+.p-div { height: 1px; background: var(--rule); margin-bottom: 10px; }
+
+.p-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+
+.p-key {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--dim);
+  align-self: center;
+}
+
+.p-val {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.1rem;
+  letter-spacing: 0.03em;
+}
+
+.p-note {
+  font-size: 0.7rem;
+  color: #6a7080;
+  line-height: 1.5;
+  margin-top: 10px;
+  font-weight: 300;
+}
+
+.map-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 18px;
+  border-top: 1px solid #111820;
+  flex-shrink: 0;
+  background: rgba(6,10,15,0.95);
+}
+
+.legend { display: flex; gap: 16px; align-items: center; }
+
+.leg-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+}
+
+.leg-dot {
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.15);
+  flex-shrink: 0;
+}
+
+.src-note {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.52rem;
+  color: #2a3040;
+  letter-spacing: 0.08em;
+}
+
+.leaflet-control-zoom { border: 1px solid var(--rule) !important; border-radius: 2px !important; }
+.leaflet-control-zoom a { background: #0d1520 !important; color: var(--dim) !important; border-color: var(--rule) !important; }
+.leaflet-control-zoom a:hover { background: #162030 !important; color: var(--paper) !important; }
+.leaflet-control-attribution { background: rgba(0,0,0,0.5) !important; color: #1a2030 !important; font-size: 9px !important; }
+.leaflet-control-attribution a { color: #2a3040 !important; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ BROADCAST PHASE ═══════════════════════════════ -->
+<div id="broadcast-phase" class="phase active">
+
+  <!-- Start overlay -->
+  <div id="start-overlay">
+    <div class="so-logo">LEAD <em>WEATHER</em></div>
+    <div class="so-sub">Week of 17 March 2026 &nbsp;·&nbsp; Global Conflict Report</div>
+    <button class="begin-btn" onclick="beginBroadcast()">▶ &nbsp; BEGIN BROADCAST</button>
+    <div class="so-note">Audio required &nbsp;·&nbsp; Click to activate speech</div>
+  </div>
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="network-logo">LEAD <span>WEATHER</span></div>
+    <div class="live-pill"><div class="live-dot"></div>LIVE</div>
+    <div class="edition-tag">Week 17 Mar 2026 &nbsp;·&nbsp; Issue 001</div>
+  </div>
+
+  <!-- Studio -->
+  <div class="studio">
+    <div class="studio-bg"></div>
+    <div class="studio-grid"></div>
+
+    <!-- Presenter -->
+    <div class="presenter-col">
+      <svg id="presenter-svg" viewBox="0 0 300 450" xmlns="http://www.w3.org/2000/svg">
+
+        <!-- DESK -->
+        <rect x="-20" y="375" width="340" height="80" fill="#0a1220"/>
+        <rect x="-20" y="368" width="340" height="10" rx="1" fill="#121e30"/>
+        <rect x="-20" y="368" width="340" height="2" fill="#1e3050" opacity="0.6"/>
+        <!-- Subtle desk surface highlight -->
+        <rect x="0" y="370" width="280" height="1" fill="rgba(255,255,255,0.04)"/>
+
+        <!-- SHOULDERS / JACKET base -->
+        <path d="M 30 300 L 10 450 L 290 450 L 270 300 Q 218 290 188 310 L 150 348 L 112 310 Q 82 290 30 300" fill="#14233a"/>
+
+        <!-- Jacket highlights -->
+        <path d="M 30 300 Q 82 290 112 310 L 112 316 Q 82 296 34 306 Z" fill="#1a2e48" opacity="0.6"/>
+        <path d="M 270 300 Q 218 290 188 310 L 188 316 Q 218 296 266 306 Z" fill="#1a2e48" opacity="0.6"/>
+
+        <!-- Lapels -->
+        <path d="M 112 310 L 96 336 L 150 348 L 128 307 Z" fill="#1c304a"/>
+        <path d="M 188 310 L 204 336 L 150 348 L 172 307 Z" fill="#1c304a"/>
+
+        <!-- Shirt -->
+        <polygon points="128,307 150,348 172,307 163,302 150,305 137,302" fill="#eee8dc"/>
+
+        <!-- Tie -->
+        <polygon points="145,303 155,303 158,346 150,353 142,346" fill="#c0392b"/>
+        <polygon points="143,301 157,301 153,308 147,308" fill="#a02820"/>
+
+        <!-- Shoulder masses -->
+        <ellipse cx="60" cy="305" rx="45" ry="22" fill="#14233a"/>
+        <ellipse cx="240" cy="305" rx="45" ry="22" fill="#14233a"/>
+
+        <!-- NECK -->
+        <rect x="130" y="258" width="40" height="38" rx="5" fill="#cdb898"/>
+
+        <!-- EARS -->
+        <ellipse cx="74" cy="185" rx="12" ry="17" fill="#cdb898"/>
+        <ellipse cx="226" cy="185" rx="12" ry="17" fill="#cdb898"/>
+        <ellipse cx="74" cy="185" rx="8" ry="11" fill="#b89870" opacity="0.55"/>
+        <ellipse cx="226" cy="185" rx="8" ry="11" fill="#b89870" opacity="0.55"/>
+
+        <!-- HEAD -->
+        <ellipse cx="150" cy="178" rx="76" ry="86" fill="#d8c0a0"/>
+
+        <!-- HAIR - geometric block -->
+        <ellipse cx="150" cy="108" rx="76" ry="46" fill="#16182e"/>
+        <rect x="74" y="108" width="152" height="50" fill="#16182e"/>
+        <!-- Side hair -->
+        <ellipse cx="74" cy="148" rx="16" ry="34" fill="#16182e"/>
+        <ellipse cx="226" cy="148" rx="16" ry="34" fill="#16182e"/>
+        <!-- Hair highlight -->
+        <path d="M 100 88 Q 150 78 200 88" stroke="rgba(255,255,255,0.06)" stroke-width="8" fill="none" stroke-linecap="round"/>
+
+        <!-- EYEBROWS -->
+        <path d="M 104 158 Q 118 150 133 154" stroke="#16182e" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <path d="M 167 154 Q 182 150 196 158" stroke="#16182e" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+
+        <!-- LEFT EYE -->
+        <g id="eye-l">
+          <ellipse cx="118" cy="175" rx="13" ry="14" fill="#16182e"/>
+          <ellipse cx="118" cy="175" rx="9" ry="10" fill="#2a4070"/>
+          <ellipse cx="118" cy="175" rx="6" ry="7" fill="#0a0a18"/>
+          <circle cx="122" cy="171" r="4" fill="white"/>
+          <circle cx="120" cy="170" r="1.8" fill="white" opacity="0.6"/>
+        </g>
+
+        <!-- RIGHT EYE -->
+        <g id="eye-r">
+          <ellipse cx="182" cy="175" rx="13" ry="14" fill="#16182e"/>
+          <ellipse cx="182" cy="175" rx="9" ry="10" fill="#2a4070"/>
+          <ellipse cx="182" cy="175" rx="6" ry="7" fill="#0a0a18"/>
+          <circle cx="186" cy="171" r="4" fill="white"/>
+          <circle cx="184" cy="170" r="1.8" fill="white" opacity="0.6"/>
+        </g>
+
+        <!-- NOSE -->
+        <path d="M 147 196 Q 143 210 146 215 Q 150 218 154 215 Q 157 210 153 196"
+              fill="none" stroke="#a88060" stroke-width="1.5" stroke-linecap="round" opacity="0.65"/>
+
+        <!-- MOUTH CLOSED -->
+        <path id="mouth-c" d="M 132 233 Q 150 241 168 233"
+              stroke="#9a6845" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+        <!-- MOUTH OPEN (hidden) -->
+        <g id="mouth-o" display="none">
+          <ellipse cx="150" cy="235" rx="16" ry="11" fill="#1a0808"/>
+          <rect x="137" y="229" width="26" height="5" rx="2.5" fill="#ede0d0"/>
+        </g>
+
+      </svg>
+    </div>
+
+    <!-- Info column — stat cards appear here -->
+    <div class="info-col" id="info-col"></div>
+
+    <!-- Lower third -->
+    <div class="lower-third" id="lower-third">
+      <div class="lt-inner">
+        <div class="lt-label" id="lt-label">LEAD WEATHER</div>
+        <div class="lt-text" id="lt-text">Week of 17 March 2026 — Global Conflict Report</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ticker -->
+  <div class="ticker">
+    <div class="ticker-label">BREAKING</div>
+    <div class="ticker-track" id="ticker-track"></div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════ MAP PHASE ═══════════════════════════════ -->
+<div id="map-phase" class="phase">
+
+  <div class="map-topbar">
+    <div class="map-masthead">
+      <div class="map-logo">Lead Weather</div>
+      <div class="map-edition">Week of 17 Mar 2026 &nbsp;·&nbsp; Issue 001</div>
+    </div>
+    <div class="map-stats">
+      <div class="mstat">
+        <div class="mstat-n red-n" id="m-dead">—</div>
+        <span class="mstat-l">Killed this week</span>
+      </div>
+      <div class="mstat">
+        <div class="mstat-n amber-n" id="m-events">—</div>
+        <span class="mstat-l">Conflict events</span>
+      </div>
+      <div class="mstat">
+        <div class="mstat-n yellow-n" id="m-zones">—</div>
+        <span class="mstat-l">Active zones</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="map-footer">
+    <div class="legend">
+      <div class="leg-item">
+        <div class="leg-dot" style="width:14px;height:14px;background:rgba(192,57,43,0.88)"></div>500+ killed
+      </div>
+      <div class="leg-item">
+        <div class="leg-dot" style="width:11px;height:11px;background:rgba(211,84,0,0.85)"></div>100–499
+      </div>
+      <div class="leg-item">
+        <div class="leg-dot" style="width:9px;height:9px;background:rgba(232,160,16,0.82)"></div>10–99
+      </div>
+      <div class="leg-item">
+        <div class="leg-dot" style="width:7px;height:7px;background:rgba(180,180,180,0.55)"></div>Under 10
+      </div>
+    </div>
+    <div class="src-note">Source: ACLED &nbsp;·&nbsp; Estimated figures &nbsp;·&nbsp; Prototype using representative data</div>
+  </div>
+</div>
+
+
+<script>
+// ─── CONFLICT DATA ───────────────────────────────────────────────────────────
+const conflicts = [
+  { name:"Gaza / West Bank", region:"Middle East", lat:31.5, lng:34.5, killed:847, events:312, type:"armed conflict", note:"Ongoing military operations. Figures represent reported fatalities across both territories for the week." },
+  { name:"Sudan — Darfur", region:"Africa", lat:13.5, lng:25.0, killed:623, events:89, type:"civil war", note:"RSF and SAF clashes continuing across Darfur. Mass displacement ongoing. Access for reporters severely restricted." },
+  { name:"Ukraine — Eastern Front", region:"Europe", lat:48.8, lng:37.5, killed:580, events:1240, type:"interstate war", note:"Heavy fighting along Donetsk and Zaporizhzhia lines. Figures represent estimated combined casualties." },
+  { name:"Myanmar", region:"Southeast Asia", lat:19.5, lng:96.5, killed:312, events:178, type:"civil war", note:"Resistance forces and junta military in sustained conflict across multiple states. Significant civilian toll." },
+  { name:"DRC — Eastern Provinces", region:"Africa", lat:-1.5, lng:28.8, killed:289, events:134, type:"armed conflict", note:"M23 and FARDC engagements in North Kivu and South Kivu. Humanitarian situation critical." },
+  { name:"Mexico — Cartel Violence", region:"North America", lat:25.0, lng:-105.0, killed:167, events:213, type:"organised crime", note:"CJNG, Sinaloa cartel clashes and state security operations across Sinaloa, Chihuahua, Guerrero states." },
+  { name:"Somalia", region:"Africa", lat:5.5, lng:45.5, killed:187, events:96, type:"insurgency", note:"Al-Shabaab operations against federal government forces and ATMIS peacekeepers." },
+  { name:"Ethiopia — Amhara", region:"Africa", lat:11.5, lng:37.8, killed:156, events:67, type:"civil conflict", note:"Fano militia and Ethiopian National Defence Force clashes continuing in Amhara region." },
+  { name:"Mali / Burkina Faso", region:"West Africa", lat:14.2, lng:-2.5, killed:143, events:58, type:"insurgency", note:"Sahel jihadist groups JNIM and ISGS active across both countries. Civilian casualties high." },
+  { name:"Yemen", region:"Middle East", lat:15.5, lng:44.5, killed:134, events:212, type:"civil war", note:"Houthi operations and coalition airstrikes continuing. Red Sea shipping corridor incidents included." },
+  { name:"Sudan — Khartoum", region:"Africa", lat:15.5, lng:32.5, killed:98, events:44, type:"civil war", note:"RSF control of most of Khartoum. SAF attempting urban recapture. Civilian infrastructure destroyed." },
+  { name:"Nigeria — North East", region:"West Africa", lat:11.8, lng:13.5, killed:98, events:43, type:"insurgency", note:"ISWAP and Boko Haram attacks on civilian and military targets in Borno and Adamawa states." },
+  { name:"Iraq / Syria — IS remnants", region:"Middle East", lat:34.5, lng:40.5, killed:67, events:89, type:"insurgency", note:"Islamic State sleeper cell activity and coalition counter-terrorism operations across border region." },
+  { name:"Haiti", region:"Caribbean", lat:18.9, lng:-72.3, killed:54, events:38, type:"gang conflict", note:"Gang coalition Viv Ansanm controlling significant Port-au-Prince territory. Police and civilian casualties." },
+  { name:"Colombia", region:"South America", lat:4.5, lng:-74.5, killed:43, events:29, type:"armed conflict", note:"FARC dissidents, ELN, and Colombian security forces clashes across Arauca and Cauca departments." },
+  { name:"Mozambique — Cabo Delgado", region:"Africa", lat:-12.5, lng:40.2, killed:38, events:22, type:"insurgency", note:"Ansar al-Sunna (ISIS affiliate) attacks on villages and infrastructure in northern Mozambique." },
+  { name:"Pakistan — Balochistan / KP", region:"South Asia", lat:32.5, lng:69.5, killed:34, events:47, type:"insurgency", note:"TTP and BLA attacks on security forces. Cross-border incidents with Afghanistan ongoing." },
+  { name:"Cameroon — Anglophone", region:"Africa", lat:6.2, lng:10.8, killed:28, events:19, type:"separatist conflict", note:"Ambazonian separatist groups and Cameroon military in North West and South West regions." },
+  { name:"Lebanon", region:"Middle East", lat:33.8, lng:35.8, killed:21, events:34, type:"armed conflict", note:"Residual cross-border incidents and internal armed incidents following ceasefire agreement." },
+  { name:"Libya", region:"North Africa", lat:27.5, lng:18.5, killed:18, events:24, type:"armed conflict", note:"Tripoli-based and eastern-based faction skirmishes. Mercenary group activity in south." },
+];
+
+const totalKilled = conflicts.reduce((a,c) => a + c.killed, 0);
+const totalEvents = conflicts.reduce((a,c) => a + c.events, 0);
+
+// ─── SPEECH SEGMENTS ─────────────────────────────────────────────────────────
+const speechQueue = [
+  {
+    text: "Good evening.",
+    onStart: () => showLowerThird("LEAD WEATHER", "Week of 17 March 2026 — Global Conflict Report")
+  },
+  {
+    text: "I'm your Lead Weather presenter. This is your weekly briefing on where the world is at war.",
+    onStart: null
+  },
+  {
+    text: "This week, armed conflict was active in twenty zones around the world.",
+    onStart: () => {
+      addStatCard("Global", "Active Conflict Zones", 20, "zones this week", "#e8a010");
+    }
+  },
+  {
+    text: "Our lead story: Gaza and the West Bank. Eight hundred and forty seven people killed in seven days. Eight hundred and forty seven.",
+    onStart: () => {
+      updateChyron("LEAD STORY", "Gaza / West Bank · 847 Killed This Week");
+      addStatCard("Middle East", "Gaza / West Bank", 847, "killed this week", "#c0392b");
+    }
+  },
+  {
+    text: "In Sudan's Darfur region, six hundred and twenty three deaths were recorded. RSF and government forces continue to fight. Journalists cannot get in.",
+    onStart: () => {
+      updateChyron("AFRICA", "Sudan — Darfur · 623 Killed This Week");
+      addStatCard("Africa", "Sudan — Darfur", 623, "killed this week", "#c0392b");
+    }
+  },
+  {
+    text: "Ukraine's eastern front: an estimated five hundred and eighty casualties this week, across the Donetsk and Zaporizhzhia lines.",
+    onStart: () => {
+      updateChyron("EUROPE", "Ukraine — Eastern Front · 580 Killed This Week");
+      addStatCard("Europe", "Ukraine — Eastern Front", 580, "killed this week", "#d35400");
+    }
+  },
+  {
+    text: "Myanmar, the Democratic Republic of Congo, Somalia, Yemen, and sixteen other active conflict zones account for the remainder.",
+    onStart: () => {
+      updateChyron("WORLDWIDE", "16 Further Active Conflict Zones");
+    }
+  },
+  {
+    text: "The total for this week: four thousand, one hundred and forty dead.",
+    onStart: () => {
+      updateChyron("THIS WEEK", "4,140 People Killed Across 20 Conflict Zones");
+      addStatCard("Global Total", "All Conflict Zones", 4140, "killed this week", "#c0392b");
+    }
+  },
+  {
+    text: "The interactive map is below. Every dot is a conflict. Every number is a person.",
+    onStart: () => {
+      updateChyron("EXPLORE", "Interactive Map — Click Any Zone For Details");
+    }
+  },
+  {
+    text: "Good night.",
+    onStart: null
+  }
+];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let speechIdx = 0;
+let mouthInterval = null;
+let blinkTimeout = null;
+let mapInitialised = false;
+
+// ─── TICKER ───────────────────────────────────────────────────────────────────
+function buildTicker() {
+  const sorted = [...conflicts].sort((a,b) => b.killed - a.killed);
+  const items = sorted.map(c =>
+    `<span class="ticker-item">${c.name.toUpperCase()} <span class="ticker-sep">·</span> ${c.killed.toLocaleString()} KILLED</span>`
+  ).join('');
+  // Duplicate for seamless loop
+  const track = document.getElementById('ticker-track');
+  track.innerHTML = items + items;
+}
+
+// ─── BROADCAST START ─────────────────────────────────────────────────────────
+function beginBroadcast() {
+  document.getElementById('start-overlay').style.display = 'none';
+  buildTicker();
+  startBlinking();
+  setTimeout(speakNext, 1200);
+}
+
+// ─── SPEECH ───────────────────────────────────────────────────────────────────
+function speakNext() {
+  if (speechIdx >= speechQueue.length) {
+    stopMouth();
+    setTimeout(transitionToMap, 1800);
+    return;
+  }
+
+  const seg = speechQueue[speechIdx++];
+  if (seg.onStart) seg.onStart();
+
+  const utt = new SpeechSynthesisUtterance(seg.text);
+  utt.rate = 0.87;
+  utt.pitch = 1.0;
+  utt.volume = 1.0;
+
+  utt.onstart = startMouth;
+  utt.onend = () => {
+    stopMouth();
+    setTimeout(speakNext, 500);
+  };
+
+  utt.onerror = () => {
+    stopMouth();
+    setTimeout(speakNext, 200);
+  };
+
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utt);
+}
+
+// ─── MOUTH ────────────────────────────────────────────────────────────────────
+function setMouth(open) {
+  const mc = document.getElementById('mouth-c');
+  const mo = document.getElementById('mouth-o');
+  if (!mc || !mo) return;
+  mc.setAttribute('display', open ? 'none' : '');
+  mo.setAttribute('display', open ? '' : 'none');
+}
+
+function startMouth() {
+  stopMouth();
+  let isOpen = false;
+  mouthInterval = setInterval(() => {
+    isOpen = !isOpen;
+    setMouth(isOpen);
+  }, 170 + Math.random() * 120);
+}
+
+function stopMouth() {
+  if (mouthInterval) { clearInterval(mouthInterval); mouthInterval = null; }
+  setMouth(false);
+}
+
+// ─── BLINK ────────────────────────────────────────────────────────────────────
+function startBlinking() {
+  function doBlink() {
+    const eyeL = document.getElementById('eye-l');
+    const eyeR = document.getElementById('eye-r');
+    if (eyeL && eyeR) {
+      eyeL.style.transform = 'scaleY(0.06)';
+      eyeR.style.transform = 'scaleY(0.06)';
+      setTimeout(() => {
+        eyeL.style.transform = 'scaleY(1)';
+        eyeR.style.transform = 'scaleY(1)';
+      }, 110);
+    }
+    blinkTimeout = setTimeout(doBlink, 2800 + Math.random() * 3500);
+  }
+  blinkTimeout = setTimeout(doBlink, 1800);
+}
+
+// ─── CHYRON / LOWER THIRD ────────────────────────────────────────────────────
+function showLowerThird(label, text) {
+  document.getElementById('lt-label').textContent = label;
+  document.getElementById('lt-text').textContent = text;
+  document.getElementById('lower-third').classList.add('up');
+}
+
+function updateChyron(label, text) {
+  const lt = document.getElementById('lower-third');
+  lt.classList.remove('up');
+  setTimeout(() => {
+    document.getElementById('lt-label').textContent = label;
+    document.getElementById('lt-text').textContent = text;
+    lt.classList.add('up');
+  }, 350);
+}
+
+// ─── STAT CARDS ───────────────────────────────────────────────────────────────
+function addStatCard(region, name, num, label, color) {
+  const col = document.getElementById('info-col');
+  // cap at 4
+  while (col.children.length >= 4) col.removeChild(col.firstChild);
+
+  const card = document.createElement('div');
+  card.className = 'stat-card';
+  card.innerHTML = `
+    <div class="sc-region">${region}</div>
+    <div class="sc-name">${name}</div>
+    <div class="sc-num" style="color:${color}">${num.toLocaleString()}</div>
+    <div class="sc-lbl">${label}</div>
+  `;
+  col.appendChild(card);
+
+  requestAnimationFrame(() => requestAnimationFrame(() => card.classList.add('show')));
+}
+
+// ─── TRANSITION TO MAP ────────────────────────────────────────────────────────
+function transitionToMap() {
+  clearTimeout(blinkTimeout);
+  stopMouth();
+
+  const bp = document.getElementById('broadcast-phase');
+  bp.style.opacity = '0';
+
+  setTimeout(() => {
+    bp.classList.remove('active');
+    const mp = document.getElementById('map-phase');
+    mp.classList.add('active');
+    if (!mapInitialised) { initMap(); mapInitialised = true; }
+  }, 900);
+}
+
+// ─── MAP ─────────────────────────────────────────────────────────────────────
+function getColor(k) {
+  if (k >= 500) return 'rgba(192,57,43,0.88)';
+  if (k >= 100) return 'rgba(211,84,0,0.85)';
+  if (k >= 10)  return 'rgba(232,160,16,0.82)';
+  return 'rgba(170,170,170,0.55)';
+}
+
+function getSize(k) {
+  if (k >= 500) return 28;
+  if (k >= 100) return 20;
+  if (k >= 10)  return 14;
+  return 9;
+}
+
+function initMap() {
+  const map = L.map('map', {
+    center: [20, 15], zoom: 2.3,
+    minZoom: 2, maxZoom: 8,
+    zoomControl: true, attributionControl: true
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap', subdomains: 'abc'
+  }).addTo(map);
+
+  conflicts.forEach((c, i) => {
+    const sz = getSize(c.killed);
+    const col = getColor(c.killed);
+
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="conflict-marker" style="
+        width:${sz}px; height:${sz}px; background:${col};
+        box-shadow:0 0 ${sz}px ${col},0 0 ${sz*2}px ${col.replace(/[\d.]+\)$/, '0.25)')};
+        animation-delay:${i * 0.055}s;
+      "></div>`,
+      iconSize: [sz, sz], iconAnchor: [sz/2, sz/2]
+    });
+
+    const kCol = c.killed >= 500 ? '#c0392b' : c.killed >= 100 ? '#d35400' : '#e8a010';
+
+    const popup = L.popup({ className: 'conflict-popup' }).setContent(`
+      <div class="popup-inner">
+        <div class="p-region">${c.region} &nbsp;·&nbsp; ${c.type}</div>
+        <div class="p-name">${c.name}</div>
+        <div class="p-div"></div>
+        <div class="p-row">
+          <span class="p-key">Killed</span>
+          <span class="p-val" style="color:${kCol}">${c.killed.toLocaleString()}</span>
+        </div>
+        <div class="p-row">
+          <span class="p-key">Events</span>
+          <span class="p-val" style="color:#d35400">${c.events.toLocaleString()}</span>
+        </div>
+        <div class="p-note">${c.note}</div>
+      </div>
+    `);
+
+    L.marker([c.lat, c.lng], { icon }).addTo(map).bindPopup(popup);
+  });
+
+  // Animate totals
+  function animN(el, target, dur) {
+    const t0 = performance.now();
+    const tick = (now) => {
+      const p = Math.min((now - t0) / dur, 1);
+      const e = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(e * target).toLocaleString();
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  setTimeout(() => {
+    animN(document.getElementById('m-dead'),   totalKilled,  1200);
+    animN(document.getElementById('m-events'), totalEvents,  1000);
+    animN(document.getElementById('m-zones'),  conflicts.length, 600);
+  }, 300);
+}
+</script>
+</body>
+</html>

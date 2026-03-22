@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DNN — Data News Network</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/dnn.css">
+</head>
+<body>
+
+<!-- ═══════ DNN INTRO / LOADING ═══════ -->
+<div id="dnn-intro" class="phase active">
+  <div class="intro-content">
+    <div class="dnn-wordmark">D<span class="accent">N</span>N</div>
+    <div class="dnn-full-name">DATA NEWS NETWORK</div>
+    <div class="dnn-tagline">We're not real, but the data is.</div>
+    <div class="intro-status" id="intro-status">
+      <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
+      <div class="loading-label" id="loading-label">Initialising voice engine…</div>
+    </div>
+    <button class="begin-btn" id="btn-begin" style="display:none" onclick="DNN.start()">▶ &nbsp; BEGIN BROADCAST</button>
+    <div class="intro-note">Audio required · Synthetic voices generated in your browser</div>
+  </div>
+</div>
+
+<!-- ═══════ BROADCAST PHASE (presenter + segments) ═══════ -->
+<div id="broadcast-phase" class="phase">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="network-logo">D<span>N</span>N</div>
+    <div class="segment-badge" id="segment-badge">LEAD WEATHER</div>
+    <div class="live-pill"><div class="live-dot"></div>LIVE</div>
+    <div class="edition-tag" id="edition-tag"></div>
+  </div>
+
+  <!-- Studio -->
+  <div class="studio">
+    <!-- Live map backdrop -->
+    <div id="studio-map" class="studio-map"></div>
+    <div class="studio-map-overlay"></div>
+
+    <!-- Presenter -->
+    <div class="presenter-col" id="presenter-col"></div>
+
+    <!-- Info column — segment injects cards here -->
+    <div class="info-col" id="info-col"></div>
+
+    <!-- Lower third -->
+    <div class="lower-third" id="lower-third">
+      <div class="lt-inner">
+        <div class="lt-label" id="lt-label">DNN</div>
+        <div class="lt-text" id="lt-text">Data News Network</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transport controls -->
+  <div class="transport" id="transport">
+    <button class="transport-btn" id="btn-back" onclick="DNN.back()" aria-label="Previous">⏮</button>
+    <button class="transport-btn transport-btn--play" id="btn-play" onclick="DNN.togglePause()" aria-label="Pause">⏸</button>
+    <button class="transport-btn" id="btn-fwd" onclick="DNN.forward()" aria-label="Next">⏭</button>
+  </div>
+
+  <!-- Ticker -->
+  <div class="ticker">
+    <div class="ticker-label" id="ticker-label">BREAKING</div>
+    <div class="ticker-track" id="ticker-track"></div>
+  </div>
+</div>
+
+<!-- ═══════ POST-BROADCAST PHASE (maps, charts, interactive) ═══════ -->
+<div id="explore-phase" class="phase">
+  <div id="explore-container"></div>
+</div>
+
+<!-- ═══════ MODULES ═══════ -->
+<script type="module">
+import { DNN } from './js/dnn-core.js';
+window.DNN = DNN;
+DNN.init();
+</script>
+
+</body>
+</html>
