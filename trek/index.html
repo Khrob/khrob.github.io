@@ -50,35 +50,99 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
 #game-canvas-wrap { flex: 1; position: relative; }
 #game-canvas-wrap canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
-/* HUD overlay */
-#hud {
+/* HUD top bar */
+#hud-top {
   position: absolute; top: 0; left: 0; right: 0;
-  display: flex; justify-content: space-between; align-items: flex-start;
-  padding: 1rem; pointer-events: none; z-index: 10;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 0.6rem 1rem; pointer-events: none; z-index: 10;
 }
-#hud > * { pointer-events: auto; }
-#hud-left { display: flex; flex-direction: column; gap: 0.5rem; }
-#hud-right { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-end; }
-.hud-panel {
-  background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.1);
-  padding: 0.6rem 1rem; font-size: 0.85rem; backdrop-filter: blur(4px);
+#hud-top > * { pointer-events: auto; }
+#hud-char-info {
+  color: #e0e0e0; font-size: 0.85rem; margin-bottom: 0.3rem;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
 }
-.hud-panel .label { color: #888; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; }
-.hud-panel .value { color: #e0e0e0; font-size: 1rem; }
+#hud-char-info #hud-char-name { font-weight: 600; margin-right: 0.8rem; }
+#hud-char-info #hud-char-hp { color: #8d8; }
+#ap-bar-wrap { width: 220px; text-align: center; }
+#ap-bar {
+  position: relative; height: 8px; background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden;
+}
+#ap-bar-fill {
+  position: absolute; top: 0; left: 0; height: 100%;
+  background: linear-gradient(90deg, #4a88dd, #6aadff); border-radius: 3px;
+  transition: width 0.3s ease;
+}
+#ap-bar-pending {
+  position: absolute; top: 0; height: 100%;
+  background: rgba(255,160,60,0.5); border-radius: 3px;
+  transition: left 0.3s ease, width 0.3s ease;
+}
+#ap-bar-label { color: #aaa; font-size: 0.65rem; margin-top: 2px; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
 
-/* Action bar */
+/* Action bar (bottom) */
 #action-bar {
-  position: absolute; bottom: 1rem; left: 50%; transform: translateX(-50%);
-  display: flex; gap: 0.4rem; z-index: 10;
+  position: absolute; bottom: 0; left: 0; right: 0;
+  display: flex; justify-content: space-between; align-items: flex-end;
+  padding: 0.8rem 1rem; pointer-events: none; z-index: 10;
 }
-#action-bar button {
+#action-bar > * { pointer-events: auto; }
+#hud-weapon-info {
+  background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.1);
+  padding: 0.5rem 0.8rem; font-size: 0.8rem; cursor: pointer;
+  backdrop-filter: blur(4px); border-radius: 4px;
+}
+#hud-weapon-info:hover { border-color: rgba(100,140,255,0.4); }
+#hud-weapon-info #hud-weapon-name { color: #ccc; margin-right: 0.6rem; }
+#hud-weapon-info #hud-weapon-ammo { color: #8d8; }
+#action-buttons { display: flex; gap: 0.4rem; }
+#action-buttons button {
   background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.2);
   color: #ccc; padding: 0.5rem 1.2rem; font-size: 0.8rem; cursor: pointer;
-  transition: all 0.15s; letter-spacing: 0.05em;
+  transition: all 0.15s; letter-spacing: 0.05em; border-radius: 4px;
 }
-#action-bar button:hover { background: rgba(100,140,255,0.3); border-color: rgba(100,140,255,0.6); color: #fff; }
-#action-bar button.active { background: rgba(100,140,255,0.4); border-color: #6a8cff; color: #fff; }
-#action-bar button:disabled { opacity: 0.3; cursor: default; }
+#action-buttons button:hover { background: rgba(100,140,255,0.3); border-color: rgba(100,140,255,0.6); color: #fff; }
+#action-buttons button.active { background: rgba(100,140,255,0.4); border-color: #6a8cff; color: #fff; }
+#action-buttons button:disabled { opacity: 0.3; cursor: default; }
+
+/* End Turn button — centered bottom */
+#btn-end-turn {
+  position: absolute; bottom: 3rem; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.85); border: 1px solid rgba(255,200,100,0.4);
+  color: #ecd07a; padding: 0.7rem 2.5rem; font-size: 1rem; cursor: pointer;
+  border-radius: 6px; z-index: 12; letter-spacing: 0.08em;
+  transition: all 0.2s; backdrop-filter: blur(4px);
+}
+#btn-end-turn:hover { background: rgba(60,50,20,0.9); border-color: rgba(255,200,100,0.7); color: #fff; }
+
+/* Context menu — positioned over tapped object */
+#context-menu {
+  position: absolute; z-index: 15; display: flex; gap: 0.3rem;
+  pointer-events: auto; transform: translate(-50%, -100%);
+}
+#context-menu button {
+  background: rgba(0,0,0,0.85); border: 1px solid rgba(255,255,255,0.25);
+  color: #ddd; padding: 0.4rem 0.8rem; font-size: 0.75rem; cursor: pointer;
+  border-radius: 4px; backdrop-filter: blur(4px); transition: all 0.15s;
+}
+#context-menu button:hover { background: rgba(100,140,255,0.3); border-color: rgba(100,140,255,0.6); color: #fff; }
+
+/* Game Over overlay */
+#game-over {
+  position: absolute; inset: 0; z-index: 100;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.8); backdrop-filter: blur(6px);
+}
+#game-over-text {
+  font-size: 2.5rem; font-weight: 200; letter-spacing: 0.3em; text-transform: uppercase;
+  color: #e0e0e0; margin-bottom: 2rem; text-shadow: 0 0 30px rgba(100,140,255,0.4);
+}
+#game-over button {
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2);
+  color: #ccc; padding: 0.7rem 2rem; font-size: 1rem; cursor: pointer; border-radius: 4px;
+  letter-spacing: 0.1em; transition: all 0.2s;
+}
+#game-over button:hover { background: rgba(100,140,255,0.2); border-color: rgba(100,140,255,0.5); color: #fff; }
 
 /* Loot popup */
 #loot-popup {
@@ -100,10 +164,10 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
 
 /* Inventory panel */
 #inventory-panel {
-  position: absolute; top: 50%; right: 1rem; transform: translateY(-50%);
+  position: absolute; bottom: 3.5rem; left: 1rem;
   background: rgba(10,12,20,0.95); border: 1px solid rgba(255,255,255,0.15);
-  padding: 1rem 1.2rem; z-index: 40; min-width: 260px; max-height: 70vh; overflow-y: auto;
-  backdrop-filter: blur(6px);
+  padding: 1rem 1.2rem; z-index: 40; min-width: 240px; max-height: 50vh; overflow-y: auto;
+  backdrop-filter: blur(6px); border-radius: 4px;
 }
 .inv-header { color: #ddd; font-size: 1rem; font-weight: 600; letter-spacing: 0.1em; margin-bottom: 0.8rem; display: flex; justify-content: space-between; }
 .inv-close { cursor: pointer; color: #888; font-size: 1.2rem; }
@@ -263,6 +327,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
     <div id="mp-lobby-actions">
       <button id="mp-invite-btn" onclick="MP.copyShareUrl()" style="display:none">Copy Invite Link</button>
       <button class="primary" id="mp-start-btn" onclick="MP.uiStart()" style="display:none">Start Game</button>
+      <button id="mp-leave-btn" onclick="MP.uiLeaveGame()" style="display:none; background:rgba(200,60,60,0.2); border-color:rgba(200,60,60,0.4); color:#e88;">Leave Game</button>
       <span id="mp-lobby-status" style="color:#888;">Waiting for host to start...</span>
     </div>
     <div id="mp-status" style="color:#888;font-size:0.85rem;margin-top:0.5rem;"></div>
@@ -276,48 +341,42 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
      ============================================================ -->
 <div id="game-view" class="section">
   <div id="game-canvas-wrap">
-    <!-- HUD -->
-    <div id="hud">
-      <div id="hud-left">
-        <div class="hud-panel" id="hud-turn">
-          <div class="label">Turn</div>
-          <div class="value" id="hud-turn-val">1</div>
-        </div>
-        <div class="hud-panel" id="hud-time">
-          <div class="label">Time</div>
-          <div class="value" id="hud-time-val">Dawn</div>
-        </div>
+    <!-- HUD top: AP bar + character info -->
+    <div id="hud-top">
+      <div id="hud-char-info" style="display:none">
+        <span id="hud-char-name">—</span>
+        <span id="hud-char-hp">—</span>
       </div>
-      <div id="hud-right">
-        <div class="hud-panel" id="hud-char" style="display:none">
-          <div class="label" id="hud-char-name">—</div>
-          <div class="value"><span id="hud-char-hp">—</span> HP &nbsp; <span id="hud-char-ap">—</span> AP</div>
+      <div id="ap-bar-wrap" style="display:none">
+        <div id="ap-bar">
+          <div id="ap-bar-fill"></div>
+          <div id="ap-bar-pending"></div>
         </div>
-        <div class="hud-panel" id="hud-weapon" style="display:none">
-          <div class="label" id="hud-weapon-name">—</div>
-          <div class="value"><span id="hud-weapon-ammo">—</span></div>
-          <div class="label" id="hud-weapon-reserve" style="font-size:0.65rem;margin-top:2px;color:#999"></div>
-        </div>
-        <div class="hud-panel" id="hud-distance">
-          <div class="label">Distance</div>
-          <div class="value"><span id="hud-dist-val">0</span>m</div>
-        </div>
+        <div id="ap-bar-label">2 / 2 AP</div>
       </div>
     </div>
 
     <!-- Turn phase banner -->
     <div id="turn-indicator"></div>
 
-    <!-- Action bar -->
+    <!-- Bottom bar: weapon left, overwatch right -->
     <div id="action-bar">
-      <button id="btn-move" onclick="Game.setAction('move')">Move</button>
-      <button id="btn-shoot" onclick="Game.setAction('shoot')">Shoot</button>
-      <button id="btn-interact" onclick="Game.setAction('interact')">Interact</button>
-      <button id="btn-reload" onclick="Game.setAction('reload')">Reload</button>
-      <button id="btn-inventory" onclick="Game.toggleInventory()">Inventory</button>
-      <button id="btn-overwatch" onclick="Game.setAction('overwatch')">Overwatch</button>
-      <button id="btn-hunker" onclick="Game.setAction('hunker')">Hunker</button>
-      <button id="btn-end-turn" onclick="Game.endTurn()">End Turn</button>
+      <div id="hud-weapon-info" onclick="Game.toggleInventory()" style="display:none">
+        <span id="hud-weapon-name">—</span>
+        <span id="hud-weapon-ammo">—</span>
+      </div>
+      <div id="action-buttons">
+        <button id="btn-overwatch" onclick="Game.setAction('overwatch')">Overwatch</button>
+      </div>
+    </div>
+
+    <!-- End Turn: centered, appears after player has acted -->
+    <button id="btn-end-turn" onclick="Game.endTurn()" style="display:none">End Turn</button>
+
+    <!-- Context menu: shoot/interact on objects -->
+    <div id="context-menu" style="display:none">
+      <button id="ctx-shoot" onclick="Game._ctxShoot()">Shoot</button>
+      <button id="ctx-interact" onclick="Game._ctxInteract()">Interact</button>
     </div>
 
     <!-- Loot popup -->
@@ -337,6 +396,12 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0f; c
     <div id="mp-waiting-banner">Waiting for other players...</div>
     <!-- Ready button (shown after replay, before your turn starts) -->
     <button id="mp-ready-btn" onclick="MP.onReady()" style="display:none">Ready</button>
+
+    <!-- Game Over overlay -->
+    <div id="game-over" style="display:none">
+      <div id="game-over-text">Game Over</div>
+      <button onclick="App.switchTo('main-menu'); MP.renderHistory()">Return to Menu</button>
+    </div>
   </div>
   <button class="back-btn" onclick="App.switchTo('main-menu'); MP.renderHistory()">☰ Menu</button>
 </div>
@@ -778,11 +843,20 @@ class World {
   }
 
   // Get the visual height of the surface at (x, z) in world units (meters)
+  // Returns the top of the TOPMOST block (including objects)
   getSurfaceHeight(x, z) {
     const y = this.getSurfaceY(x, z);
     if (y < 0) return 0;
     const block = this.getBlock(x, y, z);
     return y + (block ? block.heightUnits * 0.5 : 1);
+  }
+
+  // Get the visual height of the GROUND at (x, z) — ignores objects at y>=1
+  // Use this for character feet, move range tiles, cursor, path dots
+  getGroundHeight(x, z) {
+    const block = this.getBlock(x, 0, z);
+    if (block) return block.heightUnits * 0.5;
+    return 0;
   }
 
   // Is this tile walkable?
@@ -1091,12 +1165,12 @@ class WorldRenderer {
     this.matCacheSeen = new Map(); // hex color -> seen material
     this.fogState = new Map();     // "x,z" -> 'unseen' | 'seen' | 'visible'
 
-    // Movement range indicator material — subtle with sine pulse
+    // Movement range indicator material — renders on top of terrain
     this.moveRangeMat = new THREE.MeshBasicMaterial({
-      color: 0x4488ff, transparent: true, opacity: 0.12, depthWrite: false
+      color: 0x4488ff, transparent: true, opacity: 0.12, depthWrite: false, depthTest: false
     });
     this.moveRangeHighlightMat = new THREE.MeshBasicMaterial({
-      color: 0x88ccff, transparent: true, opacity: 0.3, depthWrite: false
+      color: 0x88ccff, transparent: true, opacity: 0.3, depthWrite: false, depthTest: false
     });
     this.moveRangeMeshes = [];
 
@@ -1763,10 +1837,12 @@ class WorldRenderer {
   // Show movement range tiles
   showMoveRange(tiles) {
     this.clearMoveRange();
-    const geo = new THREE.BoxGeometry(0.95, 0.08, 0.95);
+    const geo = new THREE.PlaneGeometry(0.95, 0.95);
+    geo.rotateX(-Math.PI / 2); // lay flat
     for (const { x, z, surfaceH } of tiles) {
       const mesh = new THREE.Mesh(geo, this.moveRangeMat);
-      mesh.position.set(x, surfaceH + 0.05, z);
+      mesh.position.set(x, surfaceH + 0.03, z);
+      mesh.renderOrder = 500;
       mesh.userData.tileX = x;
       mesh.userData.tileZ = z;
       this.scene.add(mesh);
@@ -1797,7 +1873,7 @@ class WorldRenderer {
     // Build polyline vertices stepping over each tile
     const points = [];
     for (const p of path) {
-      const h = world.getSurfaceHeight(p.x, p.z);
+      const h = world.getGroundHeight(p.x, p.z);
       points.push(new THREE.Vector3(p.x, h + 0.12, p.z));
     }
 
@@ -1922,15 +1998,15 @@ class Character {
     this.classDef = ClassDefs[classId];
     this.hp = this.classDef.hp;
     this.maxHp = this.classDef.hp;
-    this.ap = 2;
-    this.maxAp = 2;
+    this.ap = 10;
+    this.maxAp = 10;
     this.moveRange = this.classDef.move;
     this.x = x;
     this.z = z;
     this.world = world;
     this.hasMacguffin = false;
     this.overwatch = false;
-    this.hunkered = false;
+    // this.hunkered removed
 
     // Inventory & weapons
     this.inventory = {
@@ -2044,7 +2120,7 @@ class Character {
   }
 
   updateMeshPosition() {
-    const surfH = this.world.getSurfaceHeight(this.x, this.z);
+    const surfH = this.world.getGroundHeight(this.x, this.z);
     this.mesh.position.set(this.x, surfH + 0.55, this.z);
     if (this.ring) this.ring.position.y = -0.52; // slightly above ground to avoid z-fighting
   }
@@ -2063,7 +2139,7 @@ class Character {
   newTurn() {
     this.ap = this.maxAp;
     this.overwatch = false;
-    this.hunkered = false;
+    // this.hunkered removed
   }
 
   canAct() { return this.ap > 0 && this.hp > 0; }
@@ -2078,7 +2154,7 @@ class Character {
     while (queue.length > 0) {
       const { x, z, cost } = queue.shift();
       if (cost > 0) {
-        const surfH = this.world.getSurfaceHeight(x, z);
+        const surfH = this.world.getGroundHeight(x, z);
         tiles.push({ x, z, surfaceH: surfH });
       }
       if (cost >= this.moveRange) continue;
@@ -2399,11 +2475,31 @@ class IsoCameraController {
 
   lookAt(x, z) {
     this.target.set(x, 0, z);
+    this._lerpTarget = null; // cancel any active lerp
     this.updateCamera();
+  }
+
+  // Smooth pan to a position over time, returns a promise that resolves when done
+  lerpTo(x, z, duration = 800) {
+    return new Promise(resolve => {
+      this._lerpTarget = { x, z, startX: this.target.x, startZ: this.target.z,
+                           start: performance.now(), duration, resolve };
+    });
   }
 
   // Call this every frame from the render loop
   tick() {
+    // Smooth camera pan
+    if (this._lerpTarget) {
+      const lt = this._lerpTarget;
+      const t = Math.min(1, (performance.now() - lt.start) / lt.duration);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
+      this.target.x = lt.startX + (lt.x - lt.startX) * ease;
+      this.target.z = lt.startZ + (lt.z - lt.startZ) * ease;
+      this.updateCamera();
+      if (t >= 1) { const cb = lt.resolve; this._lerpTarget = null; cb(); }
+    }
+
     // Lerp current angle toward target
     const diff = this.targetAngle - this.currentAngle;
     if (Math.abs(diff) > 0.001) {
@@ -2498,12 +2594,133 @@ class DayNightCycle {
 }
 
 // ================================================================
+// ENEMY — simple blob creature
+// ================================================================
+class Enemy {
+  constructor(x, z, world, scene) {
+    this.x = x;
+    this.z = z;
+    this.world = world;
+    this.hp = 1;
+    this.alive = true;
+    this.alerted = false;
+    this.sightRange = 8; // tiles — manhattan distance
+
+    // Blob mesh — wobbly sphere
+    const group = new THREE.Group();
+    const bodyGeo = new THREE.SphereGeometry(0.3, 8, 6);
+    bodyGeo.scale(1, 0.7, 1); // squish vertically
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x882244 });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.2;
+    body.castShadow = true;
+    group.add(body);
+
+    // Eyes — two small white spheres
+    const eyeGeo = new THREE.SphereGeometry(0.06, 6, 4);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffff88 });
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+    eyeL.position.set(-0.1, 0.28, 0.22);
+    group.add(eyeL);
+    const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+    eyeR.position.set(0.1, 0.28, 0.22);
+    group.add(eyeR);
+
+    this.mesh = group;
+    this._bodyMesh = body;
+    this._wobbleOffset = Math.random() * Math.PI * 2;
+    scene.add(this.mesh);
+    this.updatePosition();
+  }
+
+  updatePosition() {
+    const h = this.world.getGroundHeight(this.x, this.z);
+    this.mesh.position.set(this.x, h, this.z);
+  }
+
+  // Wobble animation (call each frame)
+  tick(time) {
+    if (!this.alive) return;
+    const s = Math.sin(time * 3 + this._wobbleOffset) * 0.05;
+    this._bodyMesh.scale.set(1 + s, 1 - s, 1 + s);
+  }
+
+  die(scene) {
+    this.alive = false;
+    this.hp = 0;
+    scene.remove(this.mesh);
+  }
+
+  alert() {
+    if (this.alerted) return;
+    this.alerted = true;
+    // Visual: change color to angry red
+    this._bodyMesh.material.color.setHex(0xcc2244);
+  }
+
+  // Check if any player is in sight range (call each turn to auto-alert)
+  checkSight(playerChars) {
+    if (this.alerted || !this.alive) return false;
+    for (const c of playerChars) {
+      if (!c || c.hp <= 0) continue;
+      const d = Math.abs(c.x - this.x) + Math.abs(c.z - this.z);
+      if (d <= this.sightRange) {
+        this.alert();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Find nearest player character and compute jump target
+  getAction(playerChars) {
+    if (!this.alive || !this.alerted) return null;
+    let nearestChar = null, nearestDist = Infinity;
+    for (const c of playerChars) {
+      if (!c || c.hp <= 0) continue;
+      const d = Math.abs(c.x - this.x) + Math.abs(c.z - this.z);
+      if (d < nearestDist) { nearestDist = d; nearestChar = c; }
+    }
+    if (!nearestChar) return null;
+
+    // Jump toward nearest player (up to 3 tiles)
+    const jumpDist = Math.min(3, nearestDist);
+    const dx = nearestChar.x - this.x, dz = nearestChar.z - this.z;
+    const absDx = Math.abs(dx), absDz = Math.abs(dz);
+    let tx = this.x, tz = this.z;
+
+    // Move along the longer axis first, then the shorter
+    let remaining = jumpDist;
+    if (absDx >= absDz) {
+      const moveX = Math.min(remaining, absDx);
+      tx += Math.sign(dx) * moveX;
+      remaining -= moveX;
+      if (remaining > 0) tz += Math.sign(dz) * Math.min(remaining, absDz);
+    } else {
+      const moveZ = Math.min(remaining, absDz);
+      tz += Math.sign(dz) * moveZ;
+      remaining -= moveZ;
+      if (remaining > 0) tx += Math.sign(dx) * Math.min(remaining, absDx);
+    }
+
+    // Check if landing on a player
+    const hitChar = playerChars.find(c => c && c.hp > 0 && c.x === tx && c.z === tz);
+    const actualDist = Math.abs(tx - this.x) + Math.abs(tz - this.z);
+
+    // Damage: 3 tiles away = 1 dmg, 2 = 2 dmg, 1 = 3 dmg
+    const damage = hitChar ? Math.max(1, 4 - actualDist) : 0;
+
+    return { tx, tz, hitChar, damage, actualDist };
+  }
+}
+
+// ================================================================
 // GAME — main game logic
 // ================================================================
 const Game = {
   scene: null, camera: null, renderer: null, cameraCtrl: null,
   world: null, worldRenderer: null, fog: null, dayNight: null,
-  characters: [], selectedChar: null, currentAction: 'move',
+  characters: [], enemies: [], selectedChar: null, currentAction: 'move',
   turn: 1, phase: 'player', // 'player' | 'enemy'
   inCombat: false, // when false, free movement — no AP, no turns
   raycaster: new THREE.Raycaster(),
@@ -2602,18 +2819,16 @@ const Game = {
 
     // Game keyboard shortcuts
     window.addEventListener('keydown', (e) => {
-      if (MP.active && !MP.myTurnActive) return; // block actions while waiting
+      if (MP.active && !MP.myTurnActive) return;
       if (document.getElementById('inventory-panel').style.display !== 'none' && e.key === 'Escape') {
         this.toggleInventory(); e.preventDefault(); return;
       }
-      if (e.key === '1') this.setAction('move');
-      if (e.key === '2') this.setAction('shoot');
-      if (e.key === '3') this.setAction('interact');
-      if (e.key === 'r' || e.key === 'R') this.setAction('reload');
       if (e.key === 'i' || e.key === 'I') this.toggleInventory();
+      if (e.key === 'o' || e.key === 'O') this.setAction('overwatch');
+      if (e.key === 'e' || e.key === 'E') this.endTurn();
+      if (e.key === 'Escape') { this._pendingAction = null; this.worldRenderer.clearPathPreview(); }
       if (e.key === 'Tab' && this.selectedChar) {
         e.preventDefault();
-        // Cycle equipped weapon
         const inv = this.selectedChar.inventory.weapons;
         if (inv.length > 1) {
           this.selectedChar.equippedWeaponIdx = (this.selectedChar.equippedWeaponIdx + 1) % inv.length;
@@ -2693,6 +2908,10 @@ const Game = {
     // Update fire particles
     this._updateFires();
 
+    // Wobble enemy blobs
+    const now = performance.now() * 0.001;
+    for (const e of this.enemies) e.tick(now);
+
     // Camera occlusion — make blocks between camera and party members transparent
     this._updateOcclusion();
 
@@ -2761,90 +2980,76 @@ const Game = {
   },
 
   _updateHud() {
-    const refChar = this.selectedChar || this.characters.find(c => c);
-    document.getElementById('hud-dist-val').textContent =
-      refChar ? Math.round(Math.sqrt(refChar.x ** 2 + refChar.z ** 2)) : '—';
+    const c = this.selectedChar;
 
-    // Combat-only HUD elements
-    document.getElementById('hud-turn').style.display = this.inCombat ? 'block' : 'none';
-    document.getElementById('hud-time-val').textContent = this.dayNight.getPhase();
+    // Character info (top center)
+    const charInfo = document.getElementById('hud-char-info');
+    const apWrap = document.getElementById('ap-bar-wrap');
+    if (c) {
+      charInfo.style.display = '';
+      document.getElementById('hud-char-name').textContent = c.name;
+      document.getElementById('hud-char-hp').textContent = `${c.hp}/${c.maxHp} HP`;
 
-    if (this.inCombat) {
-      document.getElementById('hud-turn-val').textContent = this.turn;
-    }
-
-    if (this.selectedChar) {
-      const panel = document.getElementById('hud-char');
-      panel.style.display = 'block';
-      document.getElementById('hud-char-name').textContent =
-        `${this.selectedChar.name} (${this.selectedChar.classDef.name})`;
-      document.getElementById('hud-char-hp').textContent =
-        `${this.selectedChar.hp}/${this.selectedChar.maxHp}`;
-      // Only show AP in combat
-      document.getElementById('hud-char-ap').parentElement.querySelector('span#hud-char-ap').parentElement
-        .lastChild.textContent = this.inCombat ? ` AP` : '';
-      document.getElementById('hud-char-ap').textContent =
-        this.inCombat ? `${this.selectedChar.ap}/${this.selectedChar.maxAp}` : '';
-    }
-
-    // Weapon HUD
-    if (this.selectedChar) {
-      const wDef = this.selectedChar.getEquippedDef();
-      const wInst = this.selectedChar.getEquippedWeapon();
-      const weapEl = document.getElementById('hud-weapon');
-      if (wDef && wInst) {
-        weapEl.style.display = 'block';
-        document.getElementById('hud-weapon-name').textContent = wDef.name;
-        document.getElementById('hud-weapon-ammo').textContent = `${wInst.currentAmmo}/${wDef.magSize}`;
-        const reserve = this.selectedChar.getAmmo(wDef.ammo);
-        document.getElementById('hud-weapon-reserve').textContent = `${reserve} ${AmmoTypes[wDef.ammo].name}`;
+      // AP bar
+      if (this.inCombat) {
+        apWrap.style.display = '';
+        const pct = (c.ap / c.maxAp) * 100;
+        document.getElementById('ap-bar-fill').style.width = pct + '%';
+        document.getElementById('ap-bar-label').textContent = `${c.ap} / ${c.maxAp} AP`;
+        // Clear pending indicator (set by path preview)
+        document.getElementById('ap-bar-pending').style.width = '0';
       } else {
-        weapEl.style.display = 'block';
-        document.getElementById('hud-weapon-name').textContent = 'No weapon';
-        document.getElementById('hud-weapon-ammo').textContent = '—';
-        document.getElementById('hud-weapon-reserve').textContent = '';
+        apWrap.style.display = 'none';
       }
+    } else {
+      charInfo.style.display = 'none';
+      apWrap.style.display = 'none';
     }
 
-    // Action bar — always show move/shoot/interact/reload; combat-only: overwatch, hunker, end turn
-    document.getElementById('btn-move').style.display = '';
-    document.getElementById('btn-shoot').style.display = '';
-    document.getElementById('btn-interact').style.display = '';
-    document.getElementById('btn-reload').style.display = '';
-    document.getElementById('btn-inventory').style.display = '';
-    document.getElementById('btn-overwatch').style.display = this.inCombat ? '' : 'none';
-    document.getElementById('btn-hunker').style.display = this.inCombat ? '' : 'none';
-    document.getElementById('btn-end-turn').style.display = this.inCombat ? '' : 'none';
+    // Weapon info (bottom left, tappable for inventory)
+    const weapInfo = document.getElementById('hud-weapon-info');
+    if (c) {
+      const wDef = c.getEquippedDef();
+      const wInst = c.getEquippedWeapon();
+      if (wDef && wInst) {
+        weapInfo.style.display = '';
+        document.getElementById('hud-weapon-name').textContent = wDef.name;
+        const total = wInst.currentAmmo + c.getAmmo(wDef.ammo);
+        document.getElementById('hud-weapon-ammo').textContent = `${wInst.currentAmmo}/${wDef.magSize} (${total})`;
+      } else {
+        weapInfo.style.display = '';
+        document.getElementById('hud-weapon-name').textContent = 'No weapon';
+        document.getElementById('hud-weapon-ammo').textContent = '';
+      }
+    } else {
+      weapInfo.style.display = 'none';
+    }
 
-    // Enable/disable
-    const hasWeapon = this.selectedChar && this.selectedChar.getEquippedWeapon();
-    const canShoot = this.selectedChar && this.selectedChar.canShoot();
-    document.getElementById('btn-shoot').disabled = !hasWeapon;
-    document.getElementById('btn-reload').disabled = !(this.selectedChar && hasWeapon);
-
-    if (this.inCombat) {
-      const hasAP = this.selectedChar && this.selectedChar.canAct();
-      document.getElementById('btn-move').disabled = !hasAP;
+    // Action buttons visibility
+    const combatBtns = document.getElementById('action-buttons');
+    const endBtn = document.getElementById('btn-end-turn');
+    if (this.inCombat && c) {
+      combatBtns.style.display = 'flex';
+      const hasAP = c.canAct();
       document.getElementById('btn-overwatch').disabled = !hasAP;
-      document.getElementById('btn-hunker').disabled = !hasAP;
+      // Show End Turn only after player has spent some AP
+      const hasActed = c.ap < c.maxAp;
+      endBtn.style.display = hasActed ? 'block' : 'none';
+    } else {
+      combatBtns.style.display = 'none';
+      endBtn.style.display = 'none';
     }
-
-    // Active state for action buttons
-    for (const id of ['btn-move', 'btn-shoot', 'btn-interact', 'btn-overwatch', 'btn-hunker']) {
-      document.getElementById(id).classList.remove('active');
-    }
-    if (this.currentAction === 'move') document.getElementById('btn-move').classList.add('active');
-    if (this.currentAction === 'shoot') document.getElementById('btn-shoot').classList.add('active');
-    if (this.currentAction === 'interact') document.getElementById('btn-interact').classList.add('active');
   },
 
   selectCharacter(char) {
     if (this.selectedChar) this.selectedChar.deselect();
     this.selectedChar = char;
+    this._pendingAction = null;
+    this.currentAction = 'move';
     char.select();
     this._updateHud();
 
-    // In exploration: always show move range. In combat: only if has AP.
+    // Always show move range when selecting
     const canMove = this.inCombat ? char.canAct() : true;
     if (canMove) {
       const tiles = char.getReachableTiles();
@@ -2853,50 +3058,27 @@ const Game = {
   },
 
   setAction(action) {
-    // In exploration: move, shoot (at crates), interact are valid
-    if (!this.inCombat && !['move', 'shoot', 'interact', 'reload'].includes(action)) action = 'move';
-    this.currentAction = action;
-
-    if (action === 'reload') {
-      if (this.selectedChar) {
-        const reloaded = this.selectedChar.reload();
-        this._showFloater(this.selectedChar.mesh.position, reloaded ? 'Reloaded' : 'No ammo', reloaded ? '#8f8' : '#f88');
-        if (reloaded) {
-          const def = this.selectedChar.getEquippedDef();
-          MP.recordAction('RELOAD', { weaponId: def ? def.name : 'unknown', ammoLoaded: this.selectedChar.getEquippedWeapon().currentAmmo });
-        }
-      }
-      this.currentAction = 'move';
-      this._updateHud();
-      return;
-    }
+    this._pendingAction = null;
 
     if (action === 'overwatch' && this.selectedChar && this.selectedChar.canAct()) {
       this.selectedChar.overwatch = true;
       this.selectedChar.ap = 0;
       this.worldRenderer.clearMoveRange();
+      this.worldRenderer.clearPathPreview();
+      MP.recordAction('OVERWATCH', { playerIdx: MP.playerIdx });
       this._updateHud();
+      // Overwatch ends the turn
+      this.endTurn();
       return;
     }
 
-    if (action === 'hunker' && this.selectedChar && this.selectedChar.canAct()) {
-      this.selectedChar.hunkered = true;
-      this.selectedChar.ap = 0;
-      this.worldRenderer.clearMoveRange();
-      this._updateHud();
-      return;
+    // Default: show move range
+    this.currentAction = 'move';
+    const canMove = this.inCombat ? (this.selectedChar && this.selectedChar.canAct()) : !!this.selectedChar;
+    if (canMove && this.selectedChar) {
+      const tiles = this.selectedChar.getReachableTiles();
+      this.worldRenderer.showMoveRange(tiles);
     }
-
-    if (action === 'move') {
-      const canMove = this.inCombat ? (this.selectedChar && this.selectedChar.canAct()) : !!this.selectedChar;
-      if (canMove) {
-        const tiles = this.selectedChar.getReachableTiles();
-        this.worldRenderer.showMoveRange(tiles);
-      }
-    } else {
-      this.worldRenderer.clearMoveRange();
-    }
-
     this._updateHud();
   },
 
@@ -2921,7 +3103,15 @@ const Game = {
   // ---- Shoot at a target tile (object or enemy) ----
   _shootAt(tx, tz) {
     const char = this.selectedChar;
-    if (!char || !char.canShoot()) return;
+    if (!char) return;
+    // Auto-reload if mag empty but reserve ammo available
+    if (!char.canShoot()) {
+      const reloaded = char.reload();
+      if (reloaded) {
+        MP.recordAction('RELOAD', { weaponId: char.getEquippedDef()?.name || 'unknown', ammoLoaded: char.getEquippedWeapon().currentAmmo });
+      }
+    }
+    if (!char.canShoot()) return;
     const def = char.getEquippedDef();
     const w = char.getEquippedWeapon();
 
@@ -2945,7 +3135,27 @@ const Game = {
     // Shot line effect
     this._shotLine(char.x, char.z, tx, tz);
 
-    // Check what we hit
+    // Gunshot alerts nearby enemies (sound radius)
+    for (const e of this.enemies) {
+      if (!e.alive || e.alerted) continue;
+      const d = Math.abs(e.x - char.x) + Math.abs(e.z - char.z);
+      if (d <= 12) e.alert(); // gunshot heard within 12 tiles
+    }
+
+    // Check if we hit an enemy (one-shot kill)
+    let killedEnemy = false;
+    const hitEnemy = this.enemies.find(e => e.alive && e.x === tx && e.z === tz);
+    if (hitEnemy) {
+      killedEnemy = true;
+      hitEnemy.die(this.scene);
+      const ePos = new THREE.Vector3(tx, this.world.getGroundHeight(tx, tz) + 0.5, tz);
+      this._showFloater(ePos, 'Killed!', '#f44');
+      if (this.enemies.every(e => !e.alive)) {
+        setTimeout(() => this._showGameOver('Victory! All enemies eliminated.'), 800);
+      }
+    }
+
+    // Check what we hit (objects)
     const sy = this.world.getSurfaceY(tx, tz);
     const block = sy >= 0 ? this.world.getBlock(tx, sy, tz) : null;
     const ot = block ? ObjectTypes[block.type] : null;
@@ -2953,7 +3163,7 @@ const Game = {
     let totalDmg = 0;
     let destroyed = false;
 
-    if (ot && ot.destructible) {
+    if (!killedEnemy && ot && ot.destructible) {
       // Damage destructible object
       const key = this.world.key(tx, sy, tz);
       if (!this.objectHp.has(key)) this.objectHp.set(key, ot.hp);
@@ -2979,9 +3189,10 @@ const Game = {
     MP.recordAction('SHOOT', {
       targetX: tx, targetZ: tz,
       weaponId: def ? def.name : 'unknown',
-      hit: totalDmg > 0 || destroyed,
+      hit: totalDmg > 0 || destroyed || killedEnemy,
       damage: totalDmg,
       destroyed,
+      killedEnemyIdx: killedEnemy ? this.enemies.indexOf(hitEnemy) : -1,
     });
 
     this._updateHud();
@@ -3067,8 +3278,8 @@ const Game = {
   },
 
   _shotLine(x0, z0, x1, z1) {
-    const h0 = this.world.getSurfaceHeight(x0, z0) + 0.8;
-    const h1 = this.world.getSurfaceHeight(x1, z1) + 0.5;
+    const h0 = this.world.getGroundHeight(x0, z0) + 0.8;
+    const h1 = this.world.getGroundHeight(x1, z1) + 0.5;
 
     // Tracer line (fades)
     const geo = new THREE.BufferGeometry().setFromPoints([
@@ -3190,7 +3401,7 @@ const Game = {
   _fires: [],
 
   spawnFire(x, z, opts = {}) {
-    const h = this.world ? this.world.getSurfaceHeight(x, z) : 0;
+    const h = this.world ? this.world.getGroundHeight(x, z) : 0;
     const baseY = h + (opts.yOffset || 0.3);
     const intensity = opts.intensity || 1;
     const radius = opts.radius || 0.3;
@@ -3390,6 +3601,19 @@ const Game = {
     }
   },
 
+  _showGameOver(message = 'Game Over') {
+    const overlay = document.getElementById('game-over');
+    document.getElementById('game-over-text').textContent = message;
+    overlay.style.display = 'flex';
+    // Hide all other HUD elements
+    document.getElementById('hud-top').style.display = 'none';
+    document.getElementById('action-bar').style.display = 'none';
+    document.getElementById('btn-end-turn').style.display = 'none';
+    this._hideContextMenu();
+    this.worldRenderer.clearMoveRange();
+    this.worldRenderer.clearPathPreview();
+  },
+
   _renderInventory() {
     const char = this.selectedChar;
     if (!char) return;
@@ -3433,38 +3657,163 @@ const Game = {
   endTurn() {
     // Multiplayer: submit turn to server instead of local advance
     if (MP.active) {
-      MP.submitTurn();
+      if (!MP.myTurnActive) return; // already submitted
+      MP.myTurnActive = false; // immediately prevent double-submit
+      document.getElementById('btn-end-turn').style.display = 'none';
+      this.worldRenderer.clearMoveRange();
+      this.worldRenderer.clearPathPreview();
+      this._hideContextMenu();
+      MP._setWaiting(true); // show waiting banner immediately
+
+      // Host runs enemy AI after round 1 (let all players go first)
+      if (MP.isHost && this.turn > 1 && this.enemies.some(e => e.alive && e.alerted)) {
+        this._runEnemyPhase(true).then(() => MP.submitTurn());
+      } else {
+        MP.submitTurn();
+      }
       return;
     }
 
     // Show turn banner
     const banner = document.getElementById('turn-indicator');
-    banner.textContent = 'Enemy Phase';
+    const hasAlertedEnemies = this.enemies.some(e => e.alive && e.alerted);
+    banner.textContent = hasAlertedEnemies ? 'Enemy Phase' : 'Next Round';
     banner.classList.add('show');
+    this.phase = 'enemy';
     setTimeout(() => {
       banner.classList.remove('show');
-      // Enemy phase (placeholder — no enemies yet)
-      setTimeout(() => {
+      const enemyPhase = (this.turn > 1 && hasAlertedEnemies) ? this._runEnemyPhase() : Promise.resolve();
+      enemyPhase.then(() => {
         this.turn++;
         this.dayNight.update(this.turn);
-
-        // New turn for player characters
         for (const c of this.characters) if (c) c.newTurn();
+        this.phase = 'player';
 
         banner.textContent = 'Player Phase';
         banner.classList.add('show');
         setTimeout(() => banner.classList.remove('show'), 800);
 
-        // Regenerate world around party if needed
-        this.world.generateAround(this.characters[0].x, this.characters[0].z, 18);
+        if (!MP.active) this.world.generateAround(this.characters[0].x, this.characters[0].z, 18);
         this._updateFogAndRender();
         this._updateHud();
-
-        if (this.selectedChar) {
-          this.selectCharacter(this.selectedChar);
-        }
-      }, 600);
+        if (this.selectedChar) this.selectCharacter(this.selectedChar);
+      });
     }, 800);
+  },
+
+  // Run enemy phase: compute actions, animate, apply damage.
+  // If record=true (host in MP), records ENEMY_MOVE/ENEMY_ATTACK actions for other clients.
+  async _runEnemyPhase(record = false) {
+    // Check sight: alert any enemy that can see a player
+    for (const e of this.enemies) {
+      e.checkSight(this.characters);
+    }
+    // Propagate alerts: if an alerted enemy is near a dormant one, wake it up
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const e of this.enemies) {
+        if (!e.alive || e.alerted) continue;
+        for (const other of this.enemies) {
+          if (!other.alive || !other.alerted) continue;
+          const d = Math.abs(e.x - other.x) + Math.abs(e.z - other.z);
+          if (d <= 5) { e.alert(); changed = true; break; }
+        }
+      }
+    }
+
+    const aliveEnemies = this.enemies.filter(e => e.alive);
+    for (let i = 0; i < aliveEnemies.length; i++) {
+      const enemy = aliveEnemies[i];
+      const enemyIdx = this.enemies.indexOf(enemy);
+      const action = enemy.getAction(this.characters);
+      if (!action) continue;
+
+      // Record for MP sync
+      if (record) {
+        MP.recordAction('ENEMY_MOVE', { enemyIdx, fromX: enemy.x, fromZ: enemy.z, toX: action.tx, toZ: action.tz });
+        if (action.hitChar && action.damage > 0) {
+          const charIdx = this.characters.indexOf(action.hitChar);
+          MP.recordAction('ENEMY_ATTACK', { enemyIdx, targetPlayerIdx: charIdx, damage: action.damage });
+        }
+      }
+
+      // Animate enemy jump
+      await this._animateEnemyJump(enemy, action.tx, action.tz);
+
+      // Apply damage if hit a player
+      if (action.hitChar && action.hitChar.hp > 0) {
+        action.hitChar.hp -= action.damage;
+        const pos = new THREE.Vector3(action.hitChar.x, this.world.getGroundHeight(action.hitChar.x, action.hitChar.z) + 1, action.hitChar.z);
+        this._showFloater(pos, `-${action.damage} HP`, '#f44');
+
+        if (action.hitChar.hp <= 0) {
+          action.hitChar.hp = 0;
+          this._showFloater(pos, 'Down!', '#f00');
+        }
+        this._updateHud();
+      }
+    }
+
+    // Check if all players are dead
+    const anyAlive = this.characters.some(c => c && c.hp > 0);
+    if (!anyAlive) {
+      this._showGameOver('Defeated');
+    }
+  },
+
+  // Replay a single enemy action from the action stream (non-host clients)
+  async _replayEnemyAction(actionType, data) {
+    const enemy = this.enemies[data.enemyIdx];
+    if (!enemy || !enemy.alive) return;
+
+    if (actionType === 'ENEMY_MOVE') {
+      await this._animateEnemyJump(enemy, data.toX, data.toZ);
+    } else if (actionType === 'ENEMY_ATTACK') {
+      const target = this.characters[data.targetPlayerIdx];
+      if (target && target.hp > 0) {
+        target.hp -= data.damage;
+        const pos = new THREE.Vector3(target.x, this.world.getGroundHeight(target.x, target.z) + 1, target.z);
+        this._showFloater(pos, `-${data.damage} HP`, '#f44');
+        if (target.hp <= 0) {
+          target.hp = 0;
+          this._showFloater(pos, 'Down!', '#f00');
+        }
+        this._updateHud();
+      }
+    }
+  },
+
+  _animateEnemyJump(enemy, tx, tz) {
+    return new Promise(resolve => {
+      const fromX = enemy.x, fromZ = enemy.z;
+      const fromH = this.world.getGroundHeight(fromX, fromZ);
+      const toH = this.world.getGroundHeight(tx, tz);
+      const dist = Math.abs(tx - fromX) + Math.abs(tz - fromZ);
+      const duration = 200 + dist * 100;
+      const arcHeight = 0.5 + dist * 0.3;
+      const start = performance.now();
+
+      const tick = (now) => {
+        const t = Math.min((now - start) / duration, 1);
+        const ease = t * t * (3 - 2 * t);
+        const arc = Math.sin(t * Math.PI) * arcHeight;
+        enemy.mesh.position.set(
+          fromX + (tx - fromX) * ease,
+          fromH + (toH - fromH) * ease + arc,
+          fromZ + (tz - fromZ) * ease
+        );
+        if (t < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          enemy.x = tx;
+          enemy.z = tz;
+          enemy.updatePosition();
+          resolve();
+        }
+      };
+      requestAnimationFrame(tick);
+    });
   },
 
   _onMouseMove(e) {
@@ -3478,21 +3827,23 @@ const Game = {
     const hits = this.raycaster.intersectObjects(blockMeshes, false);
 
     if (hits.length > 0) {
-      // Prefer top-face hits to avoid picking wrong tile via side faces of taller neighbors
+      // Prefer top-face hits for accurate tile picking
       let hit = hits[0];
+      let isTopFace = false;
       for (const h of hits) {
-        if (h.face && h.face.normal.y > 0.5) { hit = h; break; }
+        if (h.face && h.face.normal.y > 0.5) { hit = h; isTopFace = true; break; }
       }
-      // Use hit point for tile coords — more accurate than mesh position for angled rays
-      const tx = Math.round(hit.point.x);
-      const tz = Math.round(hit.point.z);
+      // Top-face: use hit point (most accurate). Side-face: use mesh position (avoids boundary errors)
+      const tx = isTopFace ? Math.round(hit.point.x) : Math.round(hit.object.position.x);
+      const tz = isTopFace ? Math.round(hit.point.z) : Math.round(hit.object.position.z);
 
       // Update hover cursor + object highlight
       if (!this.hoveredTile || this.hoveredTile.x !== tx || this.hoveredTile.z !== tz) {
         this._updateHoverCursor(tx, tz);
       }
 
-      if (this.currentAction === 'move') {
+      // Only show path preview / highlight when no context menu is open
+      if (this.currentAction === 'move' && !this._contextTile) {
         this.worldRenderer.highlightTile(tx, tz);
 
         // Show path preview if we have a selected char with AP and valid BFS data
@@ -3543,10 +3894,7 @@ const Game = {
   },
 
   _getGroundHeight(x, z) {
-    // Get ground-level height (y=0 tile top), ignoring objects stacked on top
-    const ground = this.world.getBlock(x, 0, z);
-    if (ground) return 0 + ground.heightUnits * 0.5;
-    return 0;
+    return this.world.getGroundHeight(x, z);
   },
 
   _updateHoverCursor(x, z) {
@@ -3697,9 +4045,9 @@ const Game = {
       this.cameraCtrl.isPanning = false;
     }
 
-    // If we didn't drag, treat as a click
+    // If we didn't drag, treat as a click (mouse = direct action)
     if (!ds.moved) {
-      this._handleClick();
+      this._handleClick('mouse');
     }
   },
 
@@ -3799,9 +4147,9 @@ const Game = {
 
     el.addEventListener('touchend', (e) => {
       e.preventDefault();
-      // If it was a single-finger tap (no drag), treat as click
+      // If it was a single-finger tap (no drag), treat as click (touch = needs confirm)
       if (t.fingers === 1 && !t.moved) {
-        this._handleClick();
+        this._handleClick('touch');
       }
       // Reset when all fingers lifted
       if (e.touches.length === 0) {
@@ -3813,46 +4161,194 @@ const Game = {
     }, { passive: false });
   },
 
-  _handleClick() {
-    if (!this.hoveredTile || this.phase !== 'player') return;
-    if (MP.active && !MP.myTurnActive) return; // waiting for other players
-    const { x, z } = this.hoveredTile;
+  // Pending action: tracks what will happen on confirm tap (touch only)
+  _pendingAction: null, // { type: 'move'|'shoot'|'interact', x, z, path? }
+  _contextTile: null,   // { x, z } tile with context menu showing
 
-    // Check if clicking on a character
+  _handleClick(inputType = 'mouse') {
+    if (!this.hoveredTile || this.phase !== 'player') return;
+    if (MP.active && !MP.myTurnActive) return;
+    if (this.isAnimating) return;
+    const { x, z } = this.hoveredTile;
+    const char = this.selectedChar;
+    const isTouch = inputType === 'touch';
+
+    // If context menu is open: clicking the same tile dismisses it, clicking elsewhere closes + continues
+    if (this._contextTile) {
+      const sameObj = this._contextTile.x === x && this._contextTile.z === z;
+      this._hideContextMenu();
+      if (sameObj) return; // just dismiss, don't start a new action
+    }
+
+    // Tap on a character → select it
     for (const c of this.characters) {
       if (c.x === x && c.z === z) {
         this.selectCharacter(c);
+        this._pendingAction = null;
         return;
       }
     }
 
-    // Shoot action
-    if (this.currentAction === 'shoot' && !this.isAnimating) {
-      this._shootAt(x, z);
+    if (!char) return;
+
+    // Touch: if we have a pending action on this exact tile → confirm it
+    if (isTouch && this._pendingAction && this._pendingAction.x === x && this._pendingAction.z === z) {
+      this._confirmPendingAction();
       return;
     }
 
-    // Interact action
-    if (this.currentAction === 'interact' && !this.isAnimating) {
-      this._interactWith(x, z);
-      return;
+    this._pendingAction = null;
+
+    // Check for interactable/shootable object or enemy → show context menu (or act immediately on mouse)
+    const objAction = this._getObjectAction(char, x, z);
+    if (objAction) {
+      if (isTouch) {
+        // On touch: show context buttons over the object
+        this._showContextMenu(x, z, objAction);
+        return;
+      } else {
+        // On mouse: show context buttons too (let player choose shoot vs interact)
+        this._showContextMenu(x, z, objAction);
+        return;
+      }
     }
 
-    // Move action — in exploration mode, always allow; in combat, check AP
-    const canMove = this.inCombat ? (this.selectedChar && this.selectedChar.canAct()) : !!this.selectedChar;
-    if (this.currentAction === 'move' && canMove && !this.isAnimating) {
-      const tiles = this.selectedChar.getReachableTiles();
-      const target = tiles.find(t => t.x === x && t.z === z);
-      if (target) {
-        const path = this.selectedChar.getPathTo(x, z);
-        if (path.length > 1) {
-          this.worldRenderer.clearMoveRange();
-          this.worldRenderer.clearPathPreview();
-          // Record for multiplayer
-          MP.recordAction('MOVE', { path: path.map(p => ({ x: p.x, z: p.z })) });
-          this._animateMovement(this.selectedChar, path);
+    // Check for enemy blob on tile
+    const blob = this.enemies.find(e => e.alive && e.x === x && e.z === z);
+    if (blob) {
+      const wDef = char.getEquippedDef();
+      if (wDef) {
+        const sDist = Math.abs(char.x - x) + Math.abs(char.z - z);
+        if (sDist <= wDef.range && this._hasLOS(char.x, char.z, x, z)) {
+          if (isTouch) {
+            this._pendingAction = { type: 'shoot', x, z };
+            this._showFloater(new THREE.Vector3(x, this.world.getGroundHeight(x, z) + 0.5, z), 'Tap again to shoot', '#f88');
+          } else {
+            this._shootAt(x, z);
+          }
+          return;
         }
       }
+    }
+
+    // Check for enemy player on tile
+    const enemy = this.characters.find(c => c !== char && c.x === x && c.z === z && c.hp > 0);
+    if (enemy) {
+      const wDef = char.getEquippedDef();
+      if (wDef) {
+        const sDist = Math.abs(char.x - x) + Math.abs(char.z - z);
+        if (sDist <= wDef.range && this._hasLOS(char.x, char.z, x, z)) {
+          if (isTouch) {
+            this._pendingAction = { type: 'shoot', x, z };
+            this._showFloater(new THREE.Vector3(x, this.world.getSurfaceHeight(x, z) + 0.5, z), 'Tap again to shoot', '#f88');
+          } else {
+            this._shootAt(x, z);
+          }
+          return;
+        }
+      }
+    }
+
+    // Walkable tile? Move (mouse = immediate, touch = pending)
+    const canMove = this.inCombat ? char.canAct() : true;
+    if (canMove) {
+      const tiles = char.getReachableTiles();
+      const target = tiles.find(t => t.x === x && t.z === z);
+      if (target) {
+        const path = char.getPathTo(x, z);
+        if (path.length > 1) {
+          if (isTouch) {
+            this._pendingAction = { type: 'move', x, z, path };
+            this.worldRenderer.showPathPreview(path, this.world);
+            if (this.inCombat) {
+              const apAfter = char.ap - 1;
+              document.getElementById('ap-bar-pending').style.left = (apAfter / char.maxAp * 100) + '%';
+              document.getElementById('ap-bar-pending').style.width = (1 / char.maxAp * 100) + '%';
+            }
+          } else {
+            // Mouse: move immediately
+            this.worldRenderer.clearMoveRange();
+            this.worldRenderer.clearPathPreview();
+            MP.recordAction('MOVE', { path: path.map(p => ({ x: p.x, z: p.z })) });
+            this._animateMovement(char, path);
+          }
+          return;
+        }
+      }
+    }
+  },
+
+  // Determine what actions are available for an object on a tile
+  _getObjectAction(char, x, z) {
+    const sy = this.world.getSurfaceY(x, z);
+    if (sy < 1) return null;
+    const block = this.world.getBlock(x, sy, z);
+    if (!block) return null;
+    const ot = ObjectTypes[block.type];
+    if (!ot || (!ot.lootable && !ot.destructible)) return null;
+
+    const result = { canInteract: false, canShoot: false };
+    const dist = Math.abs(char.x - x) + Math.abs(char.z - z);
+
+    if (ot.lootable && dist <= 1) result.canInteract = true;
+    if (ot.destructible && char.getEquippedWeapon()) {
+      const wDef = char.getEquippedDef();
+      if (wDef && dist <= wDef.range && this._hasLOS(char.x, char.z, x, z)) {
+        result.canShoot = true;
+      }
+    }
+
+    return (result.canInteract || result.canShoot) ? result : null;
+  },
+
+  // Show shoot/interact context buttons over a tile
+  _showContextMenu(x, z, actions) {
+    this._contextTile = { x, z };
+    const menu = document.getElementById('context-menu');
+    document.getElementById('ctx-shoot').style.display = actions.canShoot ? '' : 'none';
+    document.getElementById('ctx-interact').style.display = actions.canInteract ? '' : 'none';
+
+    // Position in screen space over the tile
+    const worldPos = new THREE.Vector3(x, this.world.getSurfaceHeight(x, z) + 1.2, z);
+    worldPos.project(this.camera);
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const sx = (worldPos.x * 0.5 + 0.5) * rect.width;
+    const sy = (-worldPos.y * 0.5 + 0.5) * rect.height;
+    menu.style.left = sx + 'px';
+    menu.style.top = sy + 'px';
+    menu.style.display = 'flex';
+  },
+
+  _hideContextMenu() {
+    document.getElementById('context-menu').style.display = 'none';
+    this._contextTile = null;
+  },
+
+  _ctxShoot() {
+    if (this._contextTile) this._shootAt(this._contextTile.x, this._contextTile.z);
+    this._hideContextMenu();
+  },
+
+  _ctxInteract() {
+    if (this._contextTile) this._interactWith(this._contextTile.x, this._contextTile.z);
+    this._hideContextMenu();
+  },
+
+  _confirmPendingAction() {
+    const pa = this._pendingAction;
+    if (!pa) return;
+    const char = this.selectedChar;
+    this._pendingAction = null;
+
+    if (pa.type === 'move' && pa.path) {
+      this.worldRenderer.clearMoveRange();
+      this.worldRenderer.clearPathPreview();
+      MP.recordAction('MOVE', { path: pa.path.map(p => ({ x: p.x, z: p.z })) });
+      this._animateMovement(char, pa.path);
+    } else if (pa.type === 'shoot') {
+      this._shootAt(pa.x, pa.z);
+    } else if (pa.type === 'interact') {
+      this._interactWith(pa.x, pa.z);
     }
   },
 
@@ -3868,9 +4364,12 @@ const Game = {
         // Movement done — finalize
         if (this.inCombat) char.ap--;
         this.isAnimating = false;
+        this._pendingAction = null;
 
-        // Generate more world as we move
-        this.world.generateAround(char.x, char.z, 18);
+        // Generate more world as we move (single-player only — MP world is pre-built from seed)
+        if (!MP.active) {
+          this.world.generateAround(char.x, char.z, 18);
+        }
         this._updateFogAndRender();
 
         // In exploration: always show move range. In combat: only if has AP.
@@ -3885,8 +4384,8 @@ const Game = {
 
       const from = path[step - 1];
       const to = path[step];
-      const fromH = this.world.getSurfaceHeight(from.x, from.z) + 0.55;
-      const toH = this.world.getSurfaceHeight(to.x, to.z) + 0.55;
+      const fromH = this.world.getGroundHeight(from.x, from.z) + 0.55;
+      const toH = this.world.getGroundHeight(to.x, to.z) + 0.55;
       const startTime = performance.now();
 
       // Face movement direction
@@ -3970,6 +4469,10 @@ const Game = {
       if (c) this.scene.remove(c.mesh);
     }
     this.characters = [];
+    for (const e of this.enemies) {
+      if (e.alive) e.die(this.scene);
+    }
+    this.enemies = [];
     this.worldRenderer.clearMoveRange();
     for (const [k, m] of this.worldRenderer.meshes) {
       this.scene.remove(m);
@@ -3984,6 +4487,9 @@ const Game = {
     this.turn = 1;
     this.inCombat = true;
     this.objectHp = new Map();
+    document.getElementById('game-over').style.display = 'none';
+    document.getElementById('hud-top').style.display = '';
+    document.getElementById('action-bar').style.display = '';
     this.lootedCrates = new Set();
     this.selectedChar = null;
     this.phase = 'player';
@@ -4085,7 +4591,8 @@ const MP = {
   },
 
   async submitTurn() {
-    if (!this.active) return;
+    if (!this.active || this._submitting) return;
+    this._submitting = true;
     // Add END_TURN marker
     const char = Game.selectedChar;
     this.pendingActions.push({
@@ -4094,13 +4601,24 @@ const MP = {
     });
 
     console.log(`[MP] Submitting turn — ${this.pendingActions.length} actions`);
-    const res = await this.api('turns.php?action=submit', 'POST', {
-      matchToken: this.matchToken,
-      playerToken: this.playerToken,
-      actions: this.pendingActions,
-    });
-    console.log('[MP] Turn submitted, waiting for other players...');
+    try {
+      await this.api('turns.php?action=submit', 'POST', {
+        matchToken: this.matchToken,
+        playerToken: this.playerToken,
+        actions: this.pendingActions,
+      });
+      console.log('[MP] Turn submitted, waiting for other players...');
+    } catch (e) {
+      console.error('[MP] Submit failed:', e);
+      this._submitting = false;
+      // Game was deleted or invalid
+      if (e.message && (e.message.includes('Invalid match') || e.message.includes('not found') || e.message.includes('Not your turn'))) {
+        this._gameEndedByHost();
+      }
+      return;
+    }
 
+    this._submitting = false;
     this.pendingActions = [];
     this.myTurnActive = false;
 
@@ -4109,7 +4627,6 @@ const MP = {
 
     // Start polling for other players' actions
     this.startPolling();
-    return res;
   },
 
   async poll() {
@@ -4154,7 +4671,21 @@ const MP = {
       }
     } catch (e) {
       console.warn('Poll error:', e);
+      // If match was deleted or token invalid, stop polling and show game ended
+      if (e.message && (e.message.includes('Invalid match') || e.message.includes('not found'))) {
+        this.stopPolling();
+        this._gameEndedByHost();
+      }
     }
+  },
+
+  _gameEndedByHost() {
+    this.active = false;
+    // Remove from local history
+    const hist = this._loadHistory().filter(h => h.matchToken !== this.matchToken);
+    localStorage.setItem('trek_games', JSON.stringify(hist));
+    // Show game-ended overlay
+    Game._showGameOver('This game has been ended by the host.');
   },
 
   startPolling() {
@@ -4195,6 +4726,7 @@ const MP = {
       }
     };
     this._lobbyFocusHandler = () => {
+      console.log('[MP] Lobby focus handler fired, timer:', !!this.lobbyPollTimer);
       if (this.lobbyPollTimer) this._lobbyPollOnce();
     };
     document.addEventListener('visibilitychange', this._lobbyVisHandler);
@@ -4204,8 +4736,11 @@ const MP = {
   },
 
   async _lobbyPollOnce() {
+      if (this._lobbyPolling) return; // prevent concurrent polls
+      this._lobbyPolling = true;
       try {
         const status = await this.getStatus();
+        console.log(`[MP] Lobby poll: status=${status.status}, players=${status.players.length}, isHost=${this.isHost}`);
         if (status.players.length !== this.players.length) {
           console.log(`[MP] Lobby update: ${status.players.length} players — ${status.players.map(p => p.player_name).join(', ')}`);
         }
@@ -4218,6 +4753,7 @@ const MP = {
           await this._enterMultiplayerGame();
         }
       } catch (e) { console.warn('Lobby poll error:', e); }
+      this._lobbyPolling = false;
   },
 
   stopLobbyPoll() {
@@ -4238,9 +4774,22 @@ const MP = {
 
     // Group by player_idx to show banners
     let currentPlayer = null;
+    let showedEnemyBanner = false;
     for (const action of actions) {
-      if (action.player_idx !== currentPlayer) {
+      const isEnemy = action.action_type.startsWith('ENEMY_');
+
+      // Show banners for player transitions and enemy phase
+      if (isEnemy && !showedEnemyBanner) {
+        showedEnemyBanner = true;
+        const banner = document.getElementById('turn-indicator');
+        banner.textContent = 'Enemy Phase';
+        banner.classList.add('show');
+        await this._delay(1000);
+        banner.classList.remove('show');
+        await this._delay(300);
+      } else if (!isEnemy && action.player_idx !== currentPlayer) {
         currentPlayer = action.player_idx;
+        showedEnemyBanner = false;
         const pName = this.players.find(p => p.player_idx == currentPlayer);
         const banner = document.getElementById('turn-indicator');
         banner.textContent = `${pName ? pName.player_name : 'Player ' + currentPlayer}'s Turn`;
@@ -4249,6 +4798,18 @@ const MP = {
         banner.classList.remove('show');
         await this._delay(500);
       }
+
+      // Camera follow: lerp to wherever the action is happening
+      const ad = action.action_data;
+      if (action.action_type === 'MOVE' && ad.path?.length > 0) {
+        const dest = ad.path[ad.path.length - 1];
+        Game.cameraCtrl.lerpTo(dest.x, dest.z, 400); // don't await — camera follows while move animates
+      } else if (action.action_type === 'ENEMY_MOVE') {
+        Game.cameraCtrl.lerpTo(ad.toX, ad.toZ, 300);
+      } else if (action.action_type === 'SHOOT' || action.action_type === 'ENEMY_ATTACK') {
+        Game.cameraCtrl.lerpTo(ad.targetX ?? ad.toX ?? 0, ad.targetZ ?? ad.toZ ?? 0, 300);
+      }
+
       await this._replayOne(action);
       await this._delay(800);
     }
@@ -4289,8 +4850,8 @@ const MP = {
           const doStep = () => {
             if (step >= path.length) { origFinish(); return; }
             const from = path[step - 1], to = path[step];
-            const fromH = Game.world.getSurfaceHeight(from.x, from.z) + 0.55;
-            const toH = Game.world.getSurfaceHeight(to.x, to.z) + 0.55;
+            const fromH = Game.world.getGroundHeight(from.x, from.z) + 0.55;
+            const toH = Game.world.getGroundHeight(to.x, to.z) + 0.55;
             char.faceToward(to.x, to.z);
             const startTime = performance.now();
             const tick = (now) => {
@@ -4325,8 +4886,22 @@ const MP = {
           Game._muzzleFlash(char);
           Game._shotLine(char.x, char.z, action_data.targetX, action_data.targetZ);
         }
-        // Apply damage/destruction
-        if (action_data.destroyed) {
+        // Kill enemy if specified
+        if (action_data.killedEnemyIdx >= 0) {
+          const enemy = Game.enemies[action_data.killedEnemyIdx];
+          if (enemy && enemy.alive) {
+            enemy.die(Game.scene);
+            if (!instant) {
+              const ePos = new THREE.Vector3(action_data.targetX, Game.world.getGroundHeight(action_data.targetX, action_data.targetZ) + 0.5, action_data.targetZ);
+              Game._showFloater(ePos, 'Killed!', '#f44');
+            }
+            if (Game.enemies.every(e => !e.alive)) {
+              setTimeout(() => Game._showGameOver('Victory! All enemies eliminated.'), 800);
+            }
+          }
+        }
+        // Apply damage/destruction to objects
+        else if (action_data.destroyed) {
           const sy = Game.world.getSurfaceY(action_data.targetX, action_data.targetZ);
           if (sy >= 0) Game._destroyCrate(action_data.targetX, sy, action_data.targetZ);
         } else if (action_data.damage > 0) {
@@ -4334,7 +4909,6 @@ const MP = {
             const objPos = new THREE.Vector3(action_data.targetX, Game.world.getSurfaceHeight(action_data.targetX, action_data.targetZ) + 0.5, action_data.targetZ);
             Game._showFloater(objPos, `-${action_data.damage}`, '#ff6');
           }
-          // Update objectHp
           const sy = Game.world.getSurfaceY(action_data.targetX, action_data.targetZ);
           if (sy >= 0) {
             const key = Game.world.key(action_data.targetX, sy, action_data.targetZ);
@@ -4394,6 +4968,24 @@ const MP = {
       case 'END_TURN': {
         // Update character state from authoritative data
         if (char && action_data.hpLeft !== undefined) char.hp = action_data.hpLeft;
+        break;
+      }
+
+      // Enemy actions (host-authoritative — replayed by all clients)
+      case 'ENEMY_MOVE':
+      case 'ENEMY_ATTACK': {
+        if (!instant) {
+          await Game._replayEnemyAction(action.action_type, action_data);
+        } else {
+          // Instant replay: just teleport enemy and apply damage
+          if (action.action_type === 'ENEMY_MOVE') {
+            const e = Game.enemies[action_data.enemyIdx];
+            if (e && e.alive) { e.x = action_data.toX; e.z = action_data.toZ; e.updatePosition(); }
+          } else if (action.action_type === 'ENEMY_ATTACK') {
+            const t = Game.characters[action_data.targetPlayerIdx];
+            if (t) { t.hp -= action_data.damage; if (t.hp < 0) t.hp = 0; }
+          }
+        }
         break;
       }
 
@@ -4628,6 +5220,33 @@ const MP = {
       }
     }
 
+    // Clear spawn areas — remove any objects blocking player start positions
+    const spawnPoints = [{ x: 8, z: 8 }, { x: SIZE - 8, z: SIZE - 8 }, { x: SIZE - 8, z: 8 }, { x: 8, z: SIZE - 8 }];
+    for (const sp of spawnPoints) {
+      for (let dx = -2; dx <= 2; dx++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          const cx = sp.x + dx, cz = sp.z + dz;
+          // Remove any objects at y=1 (walls, crates, etc.)
+          const block = world.getBlock(cx, 1, cz);
+          if (block) world.blocks.delete(world.key(cx, 1, cz));
+        }
+      }
+    }
+
+    // Enemies — spawn 10 blobs at deterministic positions (skip if attract mode)
+    if (!opts.skipFires) {
+      Game.enemies = [];
+      for (let i = 0; i < 10; i++) {
+        const ex = Math.floor(rng(i * 191, i * 193) * (SIZE - 8)) + 4;
+        const ez = Math.floor(rng(i * 197, i * 199) * (SIZE - 8)) + 4;
+        if (!isInRoadArea(ex, ez)) {
+          const enemy = new Enemy(ex, ez, world, Game.scene);
+          Game.enemies.push(enemy);
+        }
+      }
+      console.log(`[MP] Spawned ${Game.enemies.length} enemies`);
+    }
+
     console.log(`[MP] Built world from seed ${seed}, size ${SIZE}: ${world.blocks.size} blocks`);
   },
 
@@ -4745,8 +5364,23 @@ const MP = {
     // Play back the other players' actions
     if (this._pendingReplay && this._pendingReplay.length > 0) {
       console.log(`[MP] Replaying ${this._pendingReplay.length} actions...`);
+      // Find the opponent character to lerp to
+      const opponentIdx = this._pendingReplay.find(a => a.player_idx != null)?.player_idx;
+      const opponentChar = opponentIdx != null ? Game.characters[opponentIdx] : null;
+      if (opponentChar) {
+        await Game.cameraCtrl.lerpTo(opponentChar.x, opponentChar.z, 1000);
+      }
       await this.replayActions(this._pendingReplay);
       this._pendingReplay = [];
+
+      // Enemy actions are now in the action stream (host-authoritative)
+      // — they get replayed as ENEMY_MOVE/ENEMY_ATTACK by replayActions above
+
+      // Lerp back to our character
+      const myChar = Game.characters[this.playerIdx];
+      if (myChar) {
+        await Game.cameraCtrl.lerpTo(myChar.x, myChar.z, 1000);
+      }
     }
     this._beginMyTurn();
   },
@@ -4878,6 +5512,18 @@ const MP = {
     }
   },
 
+  uiLeaveGame() {
+    if (!confirm('Leave this game? It will be removed from your list.')) return;
+    // Remove from local history
+    const hist = this._loadHistory().filter(h => h.matchToken !== this.matchToken);
+    localStorage.setItem('trek_games', JSON.stringify(hist));
+    // If host, also delete from server
+    if (this.isHost) {
+      this.api('matches.php?action=delete', 'POST', { matchToken: this.matchToken, playerToken: this.playerToken }).catch(() => {});
+    }
+    this.uiBack();
+  },
+
   uiBack() {
     this.stopPolling();
     this.stopLobbyPoll();
@@ -4911,9 +5557,11 @@ const MP = {
       }
       list.appendChild(div);
     }
-    // Show invite button for host
+    // Show invite button for host, leave button for everyone
     const invBtn = document.getElementById('mp-invite-btn');
     if (invBtn) invBtn.style.display = this.isHost ? 'inline-block' : 'none';
+    const leaveBtn = document.getElementById('mp-leave-btn');
+    if (leaveBtn) leaveBtn.style.display = 'inline-block';
   },
 
   copyShareUrl() {
@@ -5096,7 +5744,23 @@ const MP = {
       window.history.replaceState({}, '', url);
       App.switchTo('main-menu');
       this.renderHistory();
+      this._showMainMenuMessage('That game is no longer available — it may have been ended by the host.');
     }
+  },
+
+  _showMainMenuMessage(text) {
+    // Remove any existing message
+    const existing = document.getElementById('main-menu-msg');
+    if (existing) existing.remove();
+    // Create dismissable banner
+    const msg = document.createElement('div');
+    msg.id = 'main-menu-msg';
+    msg.style.cssText = 'background:rgba(200,100,50,0.15);border:1px solid rgba(200,100,50,0.4);color:#e0c0a0;padding:0.6rem 1rem;border-radius:6px;margin-bottom:1rem;font-size:0.85rem;max-width:420px;width:90%;display:flex;align-items:center;justify-content:space-between;gap:0.5rem;';
+    msg.innerHTML = `<span>${text}</span><span style="cursor:pointer;color:#888;font-size:1.1rem" onclick="this.parentElement.remove()">&times;</span>`;
+    // Insert at the top of the menu content (after the title)
+    const content = document.getElementById('main-menu-content');
+    const title = content.querySelector('h1');
+    title.insertAdjacentElement('afterend', msg);
   },
 };
 
@@ -6272,6 +6936,207 @@ App.switchTo = function(sectionId) {
   } else {
     AttractMode.stop();
   }
+};
+
+// ================================================================
+// TEST HARNESS — run TrekTest.run() from the console
+// ================================================================
+const TrekTest = {
+  API: MP.API,
+
+  async api(endpoint, method = 'GET', body = null) {
+    const opts = { method, headers: {} };
+    if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    const res = await fetch(`${this.API}/${endpoint}`, opts);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'API error');
+    return data;
+  },
+
+  assert(condition, msg) {
+    if (!condition) { console.error(`❌ FAIL: ${msg}`); this._failures++; }
+    else { console.log(`✅ ${msg}`); this._passes++; }
+  },
+
+  async run() {
+    console.log('%c🧪 Trek Match Lifecycle Test', 'font-size:1.2em;font-weight:bold');
+    this._passes = 0; this._failures = 0;
+    let matchToken, p1Token, p2Token;
+
+    try {
+      // ── 1. Create match ──
+      console.group('1. Create Match');
+      const create = await this.api('matches.php?action=create', 'POST', { playerName: 'TestHost', matchName: 'AutoTest' });
+      matchToken = create.matchToken;
+      p1Token = create.playerToken;
+      this.assert(matchToken && matchToken.length === 16, `Match created: ${matchToken}`);
+      this.assert(create.playerIdx === 0, `Host is player 0`);
+
+      const status1 = await this.api(`matches.php?action=status&matchToken=${matchToken}`);
+      this.assert(status1.status === 'lobby', `Status is lobby`);
+      this.assert(status1.players.length === 1, `1 player in lobby`);
+      console.groupEnd();
+
+      // ── 2. Join match ──
+      console.group('2. Join Match');
+      const join = await this.api('matches.php?action=join', 'POST', { matchToken, playerName: 'TestPlayer2' });
+      p2Token = join.playerToken;
+      this.assert(join.playerIdx === 1, `Player 2 is idx 1`);
+      this.assert(join.players.length === 2, `2 players in lobby`);
+
+      const status2 = await this.api(`matches.php?action=status&matchToken=${matchToken}`);
+      this.assert(status2.players.length === 2, `Status confirms 2 players`);
+      console.groupEnd();
+
+      // ── 3. Start match ──
+      console.group('3. Start Match');
+      const seed = 99999;
+      const setupActions = [
+        { type: 'GENERATE_MAP', data: { seed, size: 64 } },
+        { type: 'SPAWN_CHAR', data: { playerIdx: 0, name: 'TestHost', classId: 'soldier', x: 8, z: 8, weapons: [{ defId: 'pistol', currentAmmo: 12 }], ammo: { '9mm': 36 } } },
+        { type: 'SPAWN_CHAR', data: { playerIdx: 1, name: 'TestPlayer2', classId: 'soldier', x: 56, z: 56, weapons: [{ defId: 'pistol', currentAmmo: 12 }], ammo: { '9mm': 36 } } },
+      ];
+      await this.api('matches.php?action=start', 'POST', { matchToken, playerToken: p1Token, setupActions });
+
+      const status3 = await this.api(`matches.php?action=status&matchToken=${matchToken}`);
+      this.assert(status3.status === 'active', `Match is active`);
+      this.assert(status3.currentPlayerIdx === 0, `Player 0 goes first`);
+      this.assert(status3.currentRound === 1, `Round 1`);
+      console.groupEnd();
+
+      // ── 4. Poll as both players ──
+      console.group('4. Initial Poll');
+      const poll1 = await this.api(`turns.php?action=poll&matchToken=${matchToken}&playerToken=${p1Token}&afterId=0`);
+      this.assert(poll1.yourTurn === true, `P1 poll: it's our turn`);
+      this.assert(poll1.playerIdx === 0, `P1 poll: we are idx 0`);
+      this.assert(poll1.actions.length === 3, `P1 poll: 3 setup actions (GENERATE_MAP + 2 SPAWN_CHAR)`);
+      this.assert(poll1.actions[0].action_type === 'GENERATE_MAP', `First action is GENERATE_MAP`);
+      this.assert(poll1.actions[0].action_data.seed === seed, `Seed matches: ${seed}`);
+
+      const poll2 = await this.api(`turns.php?action=poll&matchToken=${matchToken}&playerToken=${p2Token}&afterId=0`);
+      this.assert(poll2.yourTurn === false, `P2 poll: not our turn`);
+      this.assert(poll2.playerIdx === 1, `P2 poll: we are idx 1`);
+      this.assert(poll2.actions.length === 3, `P2 poll: 3 setup actions`);
+      console.groupEnd();
+
+      // ── 5. Player 1 (host) submits turn with enemy actions ──
+      console.group('5. P1 Submits Turn + Enemy Actions');
+      const p1Actions = [
+        { type: 'MOVE', data: { path: [{ x: 8, z: 8 }, { x: 9, z: 8 }, { x: 10, z: 8 }] } },
+        // Host-authoritative enemy actions (simulating what _runEnemyPhase records)
+        { type: 'ENEMY_MOVE', data: { enemyIdx: 0, fromX: 20, fromZ: 20, toX: 18, toZ: 18 } },
+        { type: 'ENEMY_MOVE', data: { enemyIdx: 1, fromX: 40, fromZ: 40, toX: 38, toZ: 38 } },
+        { type: 'ENEMY_ATTACK', data: { enemyIdx: 2, targetPlayerIdx: 1, damage: 2 } },
+        { type: 'END_TURN', data: { playerIdx: 0, apLeft: 9, hpLeft: 20 } },
+      ];
+      const submit1 = await this.api('turns.php?action=submit', 'POST', { matchToken, playerToken: p1Token, actions: p1Actions });
+      this.assert(submit1.submitted === true, `P1 turn submitted`);
+      this.assert(submit1.nextPlayerIdx === 1, `Next player is P2 (idx 1)`);
+
+      const status4 = await this.api(`matches.php?action=status&matchToken=${matchToken}`);
+      this.assert(status4.currentPlayerIdx === 1, `Server confirms P2's turn`);
+      console.groupEnd();
+
+      // ── 6. Player 2 polls and sees P1's actions INCLUDING enemy actions ──
+      console.group('6. P2 Polls — sees player + enemy actions');
+      const lastSetupId = poll2.actions[poll2.actions.length - 1].id;
+      const poll3 = await this.api(`turns.php?action=poll&matchToken=${matchToken}&playerToken=${p2Token}&afterId=${lastSetupId}`);
+      this.assert(poll3.yourTurn === true, `P2 poll: it's our turn now`);
+      this.assert(poll3.actions.length === 5, `P2 sees 5 actions (MOVE + 2 ENEMY_MOVE + ENEMY_ATTACK + END_TURN)`);
+      this.assert(poll3.actions[0].action_type === 'MOVE', `Action 0: MOVE`);
+      this.assert(poll3.actions[1].action_type === 'ENEMY_MOVE', `Action 1: ENEMY_MOVE`);
+      this.assert(poll3.actions[2].action_type === 'ENEMY_MOVE', `Action 2: ENEMY_MOVE`);
+      this.assert(poll3.actions[3].action_type === 'ENEMY_ATTACK', `Action 3: ENEMY_ATTACK`);
+      this.assert(poll3.actions[3].action_data.damage === 2, `ENEMY_ATTACK damage = 2`);
+      this.assert(poll3.actions[3].action_data.targetPlayerIdx === 1, `ENEMY_ATTACK targets P2`);
+      this.assert(poll3.actions[4].action_type === 'END_TURN', `Action 4: END_TURN`);
+      console.groupEnd();
+
+      // ── 7. Player 2 submits turn ──
+      console.group('7. P2 Submits Turn');
+      const p2Actions = [
+        { type: 'MOVE', data: { path: [{ x: 56, z: 56 }, { x: 55, z: 56 }] } },
+        { type: 'END_TURN', data: { playerIdx: 1, apLeft: 9, hpLeft: 20 } },
+      ];
+      const submit2 = await this.api('turns.php?action=submit', 'POST', { matchToken, playerToken: p2Token, actions: p2Actions });
+      this.assert(submit2.submitted === true, `P2 turn submitted`);
+      this.assert(submit2.nextPlayerIdx === 0, `Next player is P1 (idx 0)`);
+      this.assert(submit2.round === 2, `Round advanced to 2`);
+      console.groupEnd();
+
+      // ── 8. Player 1 polls and sees P2's actions ──
+      console.group('8. P1 Polls for P2 Actions');
+      const lastP1Id = poll1.actions[poll1.actions.length - 1].id;
+      const poll4 = await this.api(`turns.php?action=poll&matchToken=${matchToken}&playerToken=${p1Token}&afterId=${lastP1Id}`);
+      this.assert(poll4.yourTurn === true, `P1 poll: it's our turn again`);
+      this.assert(poll4.round === 2, `Round is 2`);
+      // P1 should see own actions (MOVE + 2xENEMY_MOVE + ENEMY_ATTACK + END_TURN = 5) + P2's (MOVE + END_TURN = 2) = 7
+      this.assert(poll4.actions.length === 7, `P1 sees 7 new actions (own 5 + P2's 2)`);
+      const p2MoveActions = poll4.actions.filter(a => a.player_idx === 1);
+      this.assert(p2MoveActions.length === 2, `2 actions from P2 (MOVE + END_TURN)`);
+      const enemyActions = poll4.actions.filter(a => a.action_type.startsWith('ENEMY_'));
+      this.assert(enemyActions.length === 3, `3 enemy actions in stream (2 MOVE + 1 ATTACK)`);
+      console.groupEnd();
+
+      // ── 9. Double-submit prevention ──
+      console.group('9. Double-Submit Prevention');
+      try {
+        await this.api('turns.php?action=submit', 'POST', { matchToken, playerToken: p2Token, actions: [{ type: 'END_TURN', data: {} }] });
+        this.assert(false, `P2 double-submit should have failed`);
+      } catch (e) {
+        this.assert(e.message.includes('Not your turn'), `P2 double-submit rejected: ${e.message}`);
+      }
+      console.groupEnd();
+
+      // ── 10. Delete match ──
+      console.group('10. Delete Match');
+      // Non-host can't delete
+      try {
+        await this.api('matches.php?action=delete', 'POST', { matchToken, playerToken: p2Token });
+        this.assert(false, `Non-host delete should have failed`);
+      } catch (e) {
+        this.assert(e.message.includes('Only the host'), `Non-host delete rejected: ${e.message}`);
+      }
+
+      // Host can delete
+      await this.api('matches.php?action=delete', 'POST', { matchToken, playerToken: p1Token });
+      this.assert(true, `Host deleted match`);
+
+      // Verify deleted
+      try {
+        await this.api(`matches.php?action=status&matchToken=${matchToken}`);
+        this.assert(false, `Status should fail after delete`);
+      } catch (e) {
+        this.assert(e.message.includes('not found'), `Match not found after delete: ${e.message}`);
+      }
+
+      // Poll should fail
+      try {
+        await this.api(`turns.php?action=poll&matchToken=${matchToken}&playerToken=${p1Token}&afterId=0`);
+        this.assert(false, `Poll should fail after delete`);
+      } catch (e) {
+        this.assert(e.message.includes('Invalid match'), `Poll fails after delete: ${e.message}`);
+      }
+      console.groupEnd();
+
+    } catch (e) {
+      console.error('💥 Test crashed:', e);
+      this._failures++;
+      // Try to clean up
+      if (matchToken && p1Token) {
+        try { await this.api('matches.php?action=delete', 'POST', { matchToken, playerToken: p1Token }); } catch (_) {}
+      }
+    }
+
+    // ── Summary ──
+    const total = this._passes + this._failures;
+    if (this._failures === 0) {
+      console.log(`%c\n🎉 ALL ${total} TESTS PASSED`, 'color:#4a4;font-size:1.1em;font-weight:bold');
+    } else {
+      console.log(`%c\n⚠️ ${this._failures} of ${total} FAILED`, 'color:#a44;font-size:1.1em;font-weight:bold');
+    }
+    return { passes: this._passes, failures: this._failures };
+  },
 };
 
 // ================================================================
